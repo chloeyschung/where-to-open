@@ -16,6 +16,24 @@ python build_stability.py                 # 기준일 = 오늘
 python build_stability.py --base-date 2026-09-30 --min-n 20
 ```
 
+## 교차검증 (API 수집본 vs 내려받은 CSV)
+
+열린데이터광장·공공데이터포털에서 내려받은 CSV(한글 컬럼명, cp949, `20200101` 형식 날짜)도 그대로 넣을 수 있습니다. 같은 기준일로 두 번 돌린 뒤 비교합니다.
+
+```bash
+python build_stability.py --base-date 2026-10-15 --out out_api
+python build_stability.py --base-date 2026-10-15 --out out_dl \
+    --restaurant-file <다운로드_일반음식점.csv> --cafe-file <다운로드_휴게음식점.csv>
+python compare_sources.py out_api out_dl --competition ../competition/competition_by_dong.csv
+```
+
+`out_api/compare_report.md`에 세 가지가 나옵니다.
+1. 업소 단위: 한쪽에만 있는 관리번호, 공통 업소의 상태·인허가일·폐업일·행정동 불일치 건수와 예시
+2. 지표 단위: 업종별 영업 중 업소 수·교체율·생존율 최대 차이, 차이가 큰 행정동
+3. 경쟁 축과 비교: 카페·한식 영업 중 점포 수의 행정동별 상관 (업종 정의가 조금 달라 값이 같진 않고 방향만 봄)
+
+갱신 시점이 며칠 다르면 최근 개·폐업 몇 건 차이는 정상입니다. 지번주소가 서울이 아닌 행(전국 파일)은 자동으로 제외됩니다.
+
 ## 데이터 출처 (발표 자료용)
 
 | 데이터 | 제공 | 출처 | 비고 |

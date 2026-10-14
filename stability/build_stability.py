@@ -54,23 +54,69 @@ ALL = "전체(음식·카페)"
 
 
 # ---------------------------------------------------------------- 로드 · 정제
-def load_raw(raw_dir):
+# 열린데이터광장/공공데이터포털에서 '내려받은' CSV는 컬럼명이 한글이라 API 이름으로 맞춘다
+DOWNLOAD_COLUMNS = {
+    "개방자치단체코드": "OPNSFTEAMCODE", "관리번호": "MGTNO", "인허가일자": "APVPERMYMD",
+    "영업상태명": "TRDSTATENM", "상세영업상태명": "DTLSTATENM", "폐업일자": "DCBYMD",
+    "소재지면적": "SITEAREA", "소재지전체주소": "SITEWHLADDR", "지번주소": "SITEWHLADDR",
+    "도로명전체주소": "RDNWHLADDR", "도로명주소": "RDNWHLADDR", "사업장명": "BPLCNM",
+    "최종수정시점": "LASTMODTS", "최종수정일자": "LASTMODTS", "데이터갱신일자": "UPDATEDT",
+    "업태구분명": "UPTAENM",
+    "좌표정보(x)": "X", "좌표정보(y)": "Y", "좌표정보(X)": "X", "좌표정보(Y)": "Y",
+    "좌표정보x(epsg5174)": "X", "좌표정보y(epsg5174)": "Y",
+}
+
+
+def read_csv_any(path):
+    """API 수집본은 utf-8, 내려받은 공공데이터 CSV는 대개 cp949"""
+    for enc in ("utf-8-sig", "cp949"):
+        try:
+            return pd.read_csv(path, dtype=str, encoding=enc, low_memory=False)
+        except UnicodeDecodeError:
+            continue
+    return pd.read_csv(path, dtype=str, encoding="cp949", encoding_errors="replace", low_memory=False)
+
+
+def read_one(path, name):
+    df = read_csv_any(path)
+    df.columns = [c.strip() for c in df.columns]
+    df = df.rename(columns=DOWNLOAD_COLUMNS)
+    df = df.loc[:, ~df.columns.duplicated()]
+    missing = {"MGTNO", "APVPERMYMD", "TRDSTATENM", "DCBYMD", "UPTAENM", "X", "Y"} - set(df.columns)
+    if missing:
+        raise ValueError(f"{path}: 필요한 컬럼 없음 {missing}\n실제 컬럼: {list(df.columns)}")
+    for c in ["SITEWHLADDR", "RDNWHLADDR", "UPDATEDT", "BPLCNM", "SITEAREA"]:
+        if c not in df.columns:
+            df[c] = ""
+    if df["UPDATEDT"].fillna("").eq("").all() and "LASTMODTS" in df.columns:
+        df["UPDATEDT"] = df["LASTMODTS"]
+    df = df.fillna("")
+    df["원천"] = name
+    return df
+
+
+def load_raw(raw_dir, overrides=None):
+    """overrides: {서비스ID: 파일경로} — 내려받은 CSV로 대신 돌릴 때"""
+    overrides = overrides or {}
     frames = []
     for svc, name in SOURCES.items():
-        p = os.path.join(raw_dir, f"{svc}.csv")
+        p = overrides.get(svc) or os.path.join(raw_dir, f"{svc}.csv")
         if not os.path.exists(p):
             raise FileNotFoundError(f"{p} 가 없습니다. 먼저 collect.py 를 실행하세요.")
-        df = pd.read_csv(p, dtype=str, encoding="utf-8-sig").fillna("")
-        df["원천"] = name
-        frames.append(df)
+        frames.append(read_one(p, name))
     df = pd.concat(frames, ignore_index=True)
     for c in df.columns:
-        df[c] = df[c].str.strip()
+        df[c] = df[c].astype(str).str.strip()
+    # 서울 밖 주소가 섞인 파일(전국 다운로드 등)을 대비해 서울만 남긴다
+    addr = df["SITEWHLADDR"].where(df["SITEWHLADDR"] != "", df["RDNWHLADDR"])
+    df = df[addr.str.startswith("서울") | (addr == "")]
     return df
 
 
 def to_date(s):
-    return pd.to_datetime(s.str.slice(0, 10), format="%Y-%m-%d", errors="coerce")
+    """'2020-01-01', '2020-01-01 00:00', '20200101', '2020.01.01' 모두 처리"""
+    digits = s.fillna("").str.replace(r"[^0-9]", "", regex=True).str.slice(0, 8)
+    return pd.to_datetime(digits, format="%Y%m%d", errors="coerce")
 
 
 def load_category_map(path):
@@ -253,12 +299,17 @@ def main():
     ap.add_argument("--category-map", default=os.path.join(os.path.dirname(__file__), "category_map.csv"))
     ap.add_argument("--base-date", default=date.today().isoformat())
     ap.add_argument("--min-n", type=int, default=20, help="비율을 낼 최소 분모")
+    ap.add_argument("--restaurant-file", help="내려받은 일반음식점 CSV로 대신 실행 (교차검증용)")
+    ap.add_argument("--cafe-file", help="내려받은 휴게음식점 CSV로 대신 실행 (교차검증용)")
     a = ap.parse_args()
+    overrides = {k: v for k, v in {"LOCALDATA_072404": a.restaurant_file,
+                                    "LOCALDATA_072405": a.cafe_file}.items() if v}
     os.makedirs(a.out, exist_ok=True)
     q = {"기준일": a.base_date, "최소표본": a.min_n}
 
     rules = load_category_map(a.category_map)
-    df = clean(load_raw(a.raw), rules, q)
+    q["입력"] = {k: overrides.get(k, os.path.join(a.raw, f"{k}.csv")) for k in SOURCES}
+    df = clean(load_raw(a.raw, overrides), rules, q)
     g = load_boundary(a.boundary)
     df = map_dong(df, g, q)
 
