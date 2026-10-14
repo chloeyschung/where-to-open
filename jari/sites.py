@@ -5,16 +5,16 @@
 출력: data/seoul/sites.csv (자리별 지표), data/seoul/site_history.csv (자리별 가게 이력)
 
 규칙
-- 같은 자리 + 같은 상호 + 폐업 후 90일 안에 다시 인허가 → 한 가게로 합친다
-  (주인 변경·업종 전환 때 관리번호가 새로 나오기 때문)
+- 같은 자리 + 같은 상호 + 폐업 30일 전 ~ 폐업 후 90일 안에 다시 인허가 → 한 가게로 합친다
+  (주인 변경·업종 전환 때 관리번호가 새로 나오기 때문. 새 허가가 옛 허가 폐업 신고보다 먼저 나는 경우가 있어 30일 겹침을 허용)
+- 상태는 폐업인데 폐업일이 빈 업소는 언제 닫았는지 몰라 뺀다
 - 최근 10년 안에 영업한 가게가 하나라도 있는 자리만 남긴다
 - 최대 동시 영업 수가 2 이상이면 여러 점포 건물로 보고, 한 칸당 교체 횟수로 비교한다
 """
-import csv, os, re, statistics as S, collections as C
+import csv, os, statistics as S, collections as C
 from datetime import date
+from common import ROOT, DATA, jibun_key
 
-ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
-DATA = os.path.join(ROOT, "data", "seoul")
 TODAY = date(2026, 10, 12)        # 데이터 수집일
 CUT = date(2016, 10, 12)          # 최근 10년 시작
 MERGE_DAYS = (-30, 90)            # 폐업일 기준 재인허가 허용 범위
@@ -31,15 +31,17 @@ def norm(name):
 # 행정동: 공용 파일(좌표로 배정) → 비어 있으면 주소로 찾은 값
 fill = {r["mgt_no"]: (r["gu"], r["adm_cd"], r["adm_nm"])
         for r in csv.DictReader(open(os.path.join(ROOT, "jari", "dong_fill.csv"), encoding="utf-8-sig"))}
-site_pat = re.compile(r"^서울특별시 (\S+구) (\S+) (산\s*)?(\d+(?:-\d+)?)(?:\s|,|\(|$)")
 
-by_site = C.defaultdict(list)
+by_site, no_close = C.defaultdict(list), 0
 for r in csv.DictReader(open(os.path.join(ROOT, "data", "base", "permits_base.csv"), encoding="utf-8-sig")):
-    m = site_pat.match(r["jibun_addr"])
-    if not m or not r["permit_date"]:
+    key = jibun_key(r["jibun_addr"])
+    if not key or not r["permit_date"]:
+        continue
+    if r["status"] == "폐업" and not r["close_date"]:   # 폐업일이 없으면 지금 영업 중으로 잘못 셈
+        no_close += 1
         continue
     r["_dong"] = (r["gu"], r["adm_cd"], r["adm_nm"]) if r["adm_cd"] else fill.get(r["mgt_no"], ("", "", ""))
-    by_site[f"{m.group(1)} {m.group(2)} {'산' if m.group(3) else ''}{m.group(4)}"].append(r)
+    by_site[key].append(r)
 
 sites, history, merged_total = [], [], 0
 for key, raw in by_site.items():
@@ -112,6 +114,8 @@ for s in sites:
     s["dong_avg_single"] = round(S.mean(single[k]), 2) if single.get(k) else ""
     s["dong_avg_per_slot"] = round(S.mean(slot[k]), 2) if slot.get(k) else ""
 
+if not sites:
+    raise SystemExit("최근 10년 영업한 자리가 없습니다. permits_base.csv를 확인하세요")
 for name, rows in [("sites.csv", sites), ("site_history.csv", history)]:
     with open(os.path.join(DATA, name), "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0]))
@@ -120,7 +124,7 @@ for name, rows in [("sites.csv", sites), ("site_history.csv", history)]:
 # 요약
 n = len(sites)
 singles = [s for s in sites if s["max_concurrent"] == 1]
-print(f"최근 10년 영업한 자리: {n:,}곳 (같은 가게로 합친 재인허가 {merged_total:,}건)")
+print(f"최근 10년 영업한 자리: {n:,}곳 (같은 가게로 합친 재인허가 {merged_total:,}건, 폐업일이 없어 뺀 폐업 업소 {no_close:,}곳)")
 print(f"행정동 붙은 자리: {sum(1 for s in sites if s['hemd_name']) / n:.1%}")
 print(f"단독 점포 자리: {len(singles):,}곳 ({len(singles) / n:.0%}), 여러 점포 건물: {n - len(singles):,}곳")
 print("단독 자리 10년 인허가 건수 분포:", sorted(C.Counter(min(s["permits_10y"], 6) for s in singles).items()), "(6 = 6건 이상)")

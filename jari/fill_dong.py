@@ -46,10 +46,13 @@ for r in csv.DictReader(open(BASE, encoding="utf-8-sig")):
                      "via": via, "is_open": r["is_open"]})
 
 with open(OUT, "w", newline="", encoding="utf-8-sig") as f:
-    w = csv.DictWriter(f, fieldnames=list(fill[0]))
+    w = csv.DictWriter(f, fieldnames=["source", "mgt_no", "adm_cd", "adm_nm", "gu", "via", "is_open"])
     w.writeheader(); w.writerows(fill)
 
 print(f"행정동 채움: {len(fill):,}건 (영업 중 {sum(1 for x in fill if x['is_open'] == 'True'):,}건) → {OUT}")
+if not fill:
+    print("  채운 업소가 없습니다. 이미 행정동이 채워진 공용 파일이 아닌지 확인하세요 (좌표 기준 원본이어야 함)")
 total = sum(check.values())
-print(f"교차 검증 (좌표·주소 둘 다 있는 업소 {total:,}곳): 같은 동 {check['같음'] / total:.2%}, 다른 동 {check['다름']:,}곳")
+if total:
+    print(f"교차 검증 (좌표·주소 둘 다 있는 업소 {total:,}곳): 같은 동 {check['같음'] / total:.2%}, 다른 동 {check['다름']:,}곳")
 print("기준표에 없는 이름:", dict(unknown))
