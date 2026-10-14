@@ -163,7 +163,7 @@ def get_time_subway_data(start_month, end_month):
                 )
             )
 
-    identity_columns = ["LINE_NUM", "SUB_STA_NM"]
+    identity_columns = ["USE_MM", "LINE_NUM", "SUB_STA_NM"]
     hourly_columns = {
         f"HR_{hour}_GET_ON_NOPE": f"{hour:02d}-{hour + 1:02d}_승차"
         for hour in range(24)
@@ -204,9 +204,12 @@ def build_station_demand(start_date=START_DATE, end_date=END_DATE):
     df_daily["TOTAL_PASGR"] = (
         df_daily["RIDE_PASGR_NUM"] + df_daily["ALIGHT_PASGR_NUM"]
     )
+    df_daily = df_daily.groupby(
+        ["USE_DT", "SUB_STA_NM", "IS_WEEKEND"], as_index=False
+    )["TOTAL_PASGR"].sum()
 
     daily_grouped = (
-        df_daily.groupby(["LINE_NUM", "SUB_STA_NM", "IS_WEEKEND"])["TOTAL_PASGR"]
+        df_daily.groupby(["SUB_STA_NM", "IS_WEEKEND"])["TOTAL_PASGR"]
         .mean()
         .unstack()
         .reindex(columns=[0, 1])
@@ -221,11 +224,23 @@ def build_station_demand(start_date=START_DATE, end_date=END_DATE):
     )
     daily_grouped = daily_grouped.reset_index()
 
-    for column in df_time.columns[2:]:
+    hourly_value_columns = [
+        column for column in df_time.columns if column not in {"USE_MM", "LINE_NUM", "SUB_STA_NM"}
+    ]
+    for column in hourly_value_columns:
         df_time[column] = pd.to_numeric(df_time[column], errors="coerce")
-    df_time_features = df_time.groupby(["LINE_NUM", "SUB_STA_NM"], as_index=False).mean(
-        numeric_only=True
+    df_time["DAYS_IN_MONTH"] = pd.to_datetime(
+        df_time["USE_MM"], format="%Y%m"
+    ).dt.days_in_month
+    df_time[hourly_value_columns] = df_time[hourly_value_columns].div(
+        df_time["DAYS_IN_MONTH"], axis=0
     )
+    monthly_station_time = df_time.groupby(
+        ["USE_MM", "SUB_STA_NM"], as_index=False
+    )[hourly_value_columns].sum()
+    df_time_features = monthly_station_time.groupby("SUB_STA_NM", as_index=False)[
+        hourly_value_columns
+    ].mean()
     df_time_features["아침_수요지수(출근하차)"] = (
         df_time_features["07-08_하차"] + df_time_features["08-09_하차"]
     )
@@ -245,7 +260,6 @@ def build_station_demand(start_date=START_DATE, end_date=END_DATE):
         daily_grouped,
         df_time_features[
             [
-                "LINE_NUM",
                 "SUB_STA_NM",
                 "아침_수요지수(출근하차)",
                 "아침_승차인원",
@@ -254,7 +268,7 @@ def build_station_demand(start_date=START_DATE, end_date=END_DATE):
                 "심야_귀가지수(유흥/회식)",
             ]
         ],
-        on=["LINE_NUM", "SUB_STA_NM"],
+        on="SUB_STA_NM",
         how="inner",
     )
     return final_demand_df.sort_values(
