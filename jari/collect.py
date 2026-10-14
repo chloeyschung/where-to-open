@@ -22,7 +22,10 @@ for s in ["LOCALDATA_072404", "LOCALDATA_072405", "LOCALDATA_072218"]:
     u = lambda a, b: f"http://openapi.seoul.go.kr:8088/{SK}/json/{s}/{a}/{b}/"
     # 오류여도 HTTP 200으로 {"RESULT": {"CODE": "ERROR-..."}}가 오므로 본문에 데이터가 있는지 보고 다시 시도
     page = lambda a, b: (get(u(a, b), ok=lambda d: s in d) or {}).get(s)
-    n = page(1, 1)["list_total_count"]
+    first = page(1, 1)
+    if first is None:
+        raise SystemExit(f"{s}: 서울 API 응답 없음. 인증키와 서비스명을 확인하세요")
+    n = first["list_total_count"]
     starts = list(range(1, n + 1, 1000))
     with F.ThreadPoolExecutor(4) as ex:
         parts = list(ex.map(lambda a: page(a, min(a + 999, n)), starts))
@@ -59,4 +62,5 @@ with F.ThreadPoolExecutor(8) as ex:
         if i % 2000 == 0:
             json.dump(done, open("juso_jibun.json", "w"), ensure_ascii=False); log("지번", i, "/", len(todo))
 json.dump(done, open("juso_jibun.json", "w"), ensure_ascii=False)
-log("지번 조회 완료", len(done), "오류", sum(1 for v in done.values() if "err" in v))
+log("지번 조회 완료", len(done), "오류", sum(1 for v in done.values() if "err" in v),
+    "결과가 잘린 지번", sum(1 for v in done.values() if "total" in v and len(v["hits"]) < v["total"]))
