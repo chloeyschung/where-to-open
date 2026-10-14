@@ -30,7 +30,7 @@ OUTPUT_COLUMNS = [
     "mapping_status",
     "mapping_reason",
 ]
-DONG_AREA_COLUMNS = ["adm_cd", "adm_cd8", "stat_cd", "adm_nm", "gu", "area_km2"]
+DONG_AREA_COLUMNS = ["adm_cd", "adm_cd8", "stat_cd", "adm_nm", "gu"]
 
 
 def normalize_station_name(name):
@@ -270,8 +270,12 @@ def enrich_demand(demand_path, mapping_rows, dong_area_path):
         )
 
     output_columns = [
-        column for column in fieldnames if column not in DONG_AREA_COLUMNS
-    ] + DONG_AREA_COLUMNS
+        column
+        for column in fieldnames
+        if column not in DONG_AREA_COLUMNS and column != "area_km2"
+    ]
+    station_column_index = output_columns.index("SUB_STA_NM") + 1
+    output_columns[station_column_index:station_column_index] = DONG_AREA_COLUMNS
     enriched_rows = []
     mapped_count = 0
     for row, name in zip(demand_rows, station_names):
@@ -287,6 +291,7 @@ def enrich_demand(demand_path, mapping_rows, dong_area_path):
                 for column in DONG_AREA_COLUMNS
             }
         )
+        row.pop("area_km2", None)
         enriched_rows.append(row)
 
     with demand_path.open("w", encoding="utf-8-sig", newline="") as destination:
