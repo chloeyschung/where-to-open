@@ -8,13 +8,25 @@
 cd stability
 pip install -r requirements.txt
 
-# 1) 수집 — 서울열린데이터광장 인증키 필요 (동작 확인만 할 땐 --key sample)
-python collect.py --key <인증키>          # raw/ 에 약 70만 건, 수 분 소요. 끊기면 다시 실행하면 이어받음
+# 0) 인증키 설정 — 저장소에 커밋되지 않는 .env 파일에 넣는다
+cp .env.example .env                      # 그다음 .env 를 열어 SEOUL_API_KEY= 뒤에 키 입력
+python collect.py --check                 # 키·접속 확인 (서비스당 1건만 요청)
+
+# 1) 수집
+python collect.py                         # raw/ 에 약 70만 건, 수 분 소요. 끊기면 다시 실행하면 이어받음
 
 # 2) 집계 — 행정동 경계는 처음 실행할 때 자동 다운로드
 python build_stability.py                 # 기준일 = 오늘
 python build_stability.py --base-date 2026-09-30 --min-n 20
 ```
+
+## 인증키 관리
+
+- 키는 `SEOUL_API_KEY` 하나만 씁니다. 읽는 순서: `--key` 인자 → 환경변수 → `stability/.env` → 저장소 루트 `.env`
+- `.env`는 `.gitignore`로 막혀 있고 `.env.example`(빈 값)만 커밋됩니다. **키를 코드·README·이슈·PR 코멘트·단톡방에 붙여 넣지 마세요.**
+- 화면과 에러 메시지에는 키가 `abcd********5678`처럼 가려져 찍힙니다.
+- Render 배포 시: 서비스 → Environment → `SEOUL_API_KEY` 추가 (대시보드 값이 `.env`보다 우선)
+- 키가 노출됐다면 열린데이터광장 마이페이지에서 재발급하고 이전 키는 폐기하세요.
 
 ## 교차검증 (API 수집본 vs 내려받은 CSV)
 
