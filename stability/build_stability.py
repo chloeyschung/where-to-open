@@ -2,7 +2,9 @@
 안정성 축 집계: 서울 전체 행정동 × 업종 대분류
 
 입력
-  raw/LOCALDATA_072404.csv, raw/LOCALDATA_072405.csv   (collect.py 결과)
+  raw/LOCALDATA_072404.csv  일반음식점  (collect.py 결과)
+  raw/LOCALDATA_072405.csv  휴게음식점
+  raw/LOCALDATA_072218.csv  제과점영업  (없으면 경고 후 제외 — 베이커리가 과소 집계됨)
   행정동 경계 GeoJSON                                    (없으면 자동 다운로드)
   category_map.csv                                        (업태 → 대분류 규칙, 수정 가능)
 
@@ -27,6 +29,12 @@
   3년_생존율    = 3년_생존 / 3년_코호트
   (분모가 --min-n 미만이면 비율을 비우고 표본부족 표시)
 
+임시·팝업 인허가 제외 (지표 계산에서만 빼고 stores_clean.csv 에는 '임시영업' 표시로 남긴다)
+  ① 사업장명에 '한시적·임시·팝업·행사' 가 들어간 업소
+  ② '다발 건물'에서 90일 안에 폐업한 업소
+     다발 건물 = 최근 3년 인허가 30건 이상이고 그중 절반 이상이 90일 안에 폐업한 건물(지번 단위)
+     → 백화점·복합몰 팝업, 축제·행사장 부스. 같은 건물이라도 오래 영업한 입점 매장은 남긴다
+
 영업상태 처리
   폐업         → 폐업일자(DCBYMD) 기준으로 폐업 처리. 폐업일 없는 건은 시점 지표에서 제외
   휴업         → 영업 중으로 간주
@@ -48,7 +56,10 @@ import pandas as pd
 
 BOUNDARY_URL = ("https://raw.githubusercontent.com/vuski/admdongkor/master/"
                 "ver20260701/HangJeongDong_ver20260701.geojson")
-SOURCES = {"LOCALDATA_072404": "일반음식점", "LOCALDATA_072405": "휴게음식점"}
+SOURCES = {"LOCALDATA_072404": "일반음식점", "LOCALDATA_072405": "휴게음식점", "LOCALDATA_072218": "제과점"}
+OPTIONAL = {"LOCALDATA_072218"}   # 없어도 실행은 되게 (경고 후 제외)
+TEMP_NAME = r"한시적|임시\s*영업|임시매장|팝업|pop[\s-]?up|행사"
+HOT_MIN, HOT_SHORT_SHARE, SHORT_DAYS = 30, 0.5, 90
 CRS_CANDIDATES = ["EPSG:5174", "EPSG:5181"]  # 문서상 5174, 신규 데이터셋 설명은 GRS80(5181) → 실측으로 결정
 ALL = "전체(음식·카페)"
 
@@ -95,13 +106,18 @@ def read_one(path, name):
     return df
 
 
-def load_raw(raw_dir, overrides=None):
+def load_raw(raw_dir, overrides=None, q=None):
     """overrides: {서비스ID: 파일경로} — 내려받은 CSV로 대신 돌릴 때"""
     overrides = overrides or {}
+    q = q if q is not None else {}
     frames = []
     for svc, name in SOURCES.items():
         p = overrides.get(svc) or os.path.join(raw_dir, f"{svc}.csv")
         if not os.path.exists(p):
+            if svc in OPTIONAL:
+                print(f"  ! {p} 없음 → {name} 제외하고 진행 (받으려면: python collect.py --only {svc})")
+                q.setdefault("누락_입력", []).append(f"{svc} {name}")
+                continue
             raise SystemExit(f"\n{p} 가 없습니다. 먼저 python3 collect.py 로 수집하세요.")
         frames.append(read_one(p, name))
     df = pd.concat(frames, ignore_index=True)
@@ -167,6 +183,36 @@ def clean(df, rules, q):
     q["제외_업종(편의점·이동조리 등)"] = int(excl.sum())
     df = df[~excl]
     return df.copy()
+
+
+# ---------------------------------------------------------------- 임시·팝업 판별
+def building_key(addr):
+    """지번주소에서 건물 단위(구 + 동 + 번지)만 남긴다. '... 145-117 (지상1층)' → '... 145-117'"""
+    return addr.fillna("").str.extract(r"^(서울특별시\s+\S+구\s+\S+\s+(?:산\s*)?\d+(?:-\d+)?)")[0]
+
+
+def flag_temporary(df, base_date, q):
+    B = pd.Timestamp(base_date)
+    life = (df["폐업일"] - df["인허가일"]).dt.days
+    short = (df["상태구분"] == "폐업") & (life <= SHORT_DAYS)
+    by_name = df["BPLCNM"].fillna("").str.contains(TEMP_NAME, case=False, regex=True)
+
+    bld = building_key(df["SITEWHLADDR"])
+    recent = (df["인허가일"] > B - pd.DateOffset(years=3)) & bld.notna()
+    st = pd.DataFrame({"건물": bld[recent], "단기": short[recent]}).groupby("건물")["단기"].agg(["size", "mean"])
+    hot = st[(st["size"] >= HOT_MIN) & (st["mean"] >= HOT_SHORT_SHARE)].index
+    in_hot = bld.isin(hot)
+    by_hot = in_hot & short
+
+    df["임시영업"] = by_name | by_hot
+    q["임시영업_제외"] = {
+        "사업장명_기준": int(by_name.sum()),
+        "다발건물_90일내폐업": int((by_hot & ~by_name).sum()),
+        "합계": int(df["임시영업"].sum()),
+        "다발건물_수": int(len(hot)),
+        "업종별": df.loc[df["임시영업"], "업종대분류"].value_counts().to_dict(),
+    }
+    return df
 
 
 # ---------------------------------------------------------------- 행정동 매핑
@@ -324,26 +370,37 @@ def main():
     ap.add_argument("--min-n", type=int, default=20, help="비율을 낼 최소 분모")
     ap.add_argument("--restaurant-file", help="내려받은 일반음식점 CSV로 대신 실행 (교차검증용)")
     ap.add_argument("--cafe-file", help="내려받은 휴게음식점 CSV로 대신 실행 (교차검증용)")
+    ap.add_argument("--bakery-file", help="내려받은 제과점영업 CSV로 대신 실행 (교차검증용)")
+    ap.add_argument("--keep-temporary", action="store_true", help="임시·팝업 인허가를 빼지 않고 계산 (비교용)")
     a = ap.parse_args()
     overrides = {k: v for k, v in {"LOCALDATA_072404": a.restaurant_file,
-                                    "LOCALDATA_072405": a.cafe_file}.items() if v}
+                                    "LOCALDATA_072405": a.cafe_file,
+                                    "LOCALDATA_072218": a.bakery_file}.items() if v}
     os.makedirs(a.out, exist_ok=True)
     q = {"기준일": a.base_date, "최소표본": a.min_n}
 
     rules = load_category_map(a.category_map)
     q["입력"] = {k: overrides.get(k, os.path.join(a.raw, f"{k}.csv")) for k in SOURCES}
     print("[1/4] 원본 읽기·정제")
-    df = clean(load_raw(a.raw, overrides), rules, q)
+    df = clean(load_raw(a.raw, overrides, q), rules, q)
     print(f"  업소 {len(df):,}건")
     print("[2/4] 행정동 경계 준비")
     g = load_boundary(a.boundary)
     print("[3/4] 좌표 → 행정동 매핑")
     df = map_dong(df, g, q)
     print(f"  매핑률 {q['행정동_매핑률']:.1%} (좌표계 {q['채택_좌표계']})")
+    df = flag_temporary(df, a.base_date, q)
+    t = q["임시영업_제외"]
+    print(f"  임시·팝업 판별 {t['합계']:,}건 (다발 건물 {t['다발건물_수']}곳)"
+          + (" — --keep-temporary: 제외하지 않음" if a.keep_temporary else " → 지표에서 제외"))
+    full = df
+    if not a.keep_temporary:
+        df = df[~df["임시영업"]].copy()
     print("[4/4] 지표 집계·저장")
 
     # 업태 매핑 검토표
-    (df.groupby(["원천", "UPTAENM", "업종대분류"]).size().rename("건수").reset_index()
+    (full.groupby(["원천", "UPTAENM", "업종대분류"])
+       .agg(건수=("임시영업", "size"), 임시영업_제외=("임시영업", "sum")).reset_index()
        .sort_values("건수", ascending=False)
        .to_csv(os.path.join(a.out, "category_mapping_used.csv"), index=False, encoding="utf-8-sig"))
 
@@ -367,6 +424,19 @@ def main():
 
     dong = label_pattern(dong, seoul)
     gu = label_pattern(gu, seoul)
+
+    # 행정동 표본이 부족하면 같은 자치구의 같은 업종 값으로 대신 보여준다 (화면·API 표시용)
+    gref = gu[["자치구", "업종대분류", "교체율", "신규율", "3년_생존율"]].rename(
+        columns=lambda c: c if c in ("자치구", "업종대분류") else f"구_{c}")
+    dong = dong.merge(gref, on=["자치구", "업종대분류"], how="left")
+    used_gu = pd.Series(False, index=dong.index)
+    for m in ["교체율", "신규율", "3년_생존율"]:
+        dong[f"표시_{m}"] = dong[m].fillna(dong[f"구_{m}"])
+        used_gu |= dong[m].isna() & dong[f"구_{m}"].notna()
+    none = dong[["표시_교체율", "표시_신규율", "표시_3년_생존율"]].isna().all(axis=1)
+    dong["값_기준"] = np.select([none, used_gu], ["없음", "자치구 대체"], default="행정동")
+    dong = dong.drop(columns=[f"구_{m}" for m in ["교체율", "신규율", "3년_생존율"]])
+    q["값_기준_분포(전체 업종 제외)"] = dong.loc[dong["업종대분류"] != ALL, "값_기준"].value_counts().to_dict()
     dong.insert(0, "기준일", a.base_date)
     gu.insert(0, "기준일", a.base_date)
     seoul.insert(0, "기준일", a.base_date)
@@ -377,13 +447,14 @@ def main():
     yearly(df, B=a.base_date).to_csv(os.path.join(a.out, "yearly_by_dong.csv"), index=False, encoding="utf-8-sig")
 
     keep = ["원천", "MGTNO", "BPLCNM", "UPTAENM", "업종대분류", "상태구분", "인허가일", "폐업일",
-            "SITEWHLADDR", "RDNWHLADDR", "SITEAREA", "X", "Y", "행정동코드", "행정동명", "자치구", "좌표_자치구불일치"]
-    st = df[keep].rename(columns={"MGTNO": "관리번호", "BPLCNM": "사업장명", "UPTAENM": "업태명",
+            "SITEWHLADDR", "RDNWHLADDR", "SITEAREA", "X", "Y", "행정동코드", "행정동명", "자치구", "좌표_자치구불일치",
+            "임시영업"]
+    st = full[keep].rename(columns={"MGTNO": "관리번호", "BPLCNM": "사업장명", "UPTAENM": "업태명",
                                   "SITEWHLADDR": "지번주소", "RDNWHLADDR": "도로명주소", "SITEAREA": "면적"})
     st["영업기간_일"] = (st["폐업일"].fillna(pd.Timestamp(a.base_date)) - st["인허가일"]).dt.days
     st.to_csv(os.path.join(a.out, "stores_clean.csv"), index=False, encoding="utf-8-sig")
 
-    q["최종_업소수"] = int(len(df))
+    q["최종_업소수(지표 계산 대상)"] = int(len(df))
     q["업종대분류_분포"] = df["업종대분류"].value_counts().to_dict()
     with open(os.path.join(a.out, "quality_report.json"), "w", encoding="utf-8") as f:
         json.dump(q, f, ensure_ascii=False, indent=2, default=str)

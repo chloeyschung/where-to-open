@@ -4,6 +4,7 @@
 출처: 서울열린데이터광장 OpenAPI (제공: 서울특별시 시민건강국 식품정책과, 공공누리 1유형)
   - 서울시 일반음식점 인허가 정보  서비스명 LOCALDATA_072404
   - 서울시 휴게음식점 인허가 정보  서비스명 LOCALDATA_072405
+  - 서울시 제과점영업 인허가 정보  서비스명 LOCALDATA_072218 (빵집 대부분이 여기 있음)
   원본시스템: 공공데이터포털(지방행정 인허가정보)
 
 이 API는 변동분이 아니라 '전체' 데이터를 1회 최대 1,000건씩 페이지로 내려준다.
@@ -18,7 +19,8 @@
   python collect.py                       # 전체 수집 (.env 의 키 사용)
   python collect.py --key sample          # 키 없이 동작 확인 (서비스당 5건)
 
-결과: raw/LOCALDATA_072404.csv, raw/LOCALDATA_072405.csv
+결과: raw/LOCALDATA_072404.csv, raw/LOCALDATA_072405.csv, raw/LOCALDATA_072218.csv
+이미 받은 두 개는 두고 제과점만 받으려면:  python collect.py --only LOCALDATA_072218
 중간에 끊기면 같은 명령을 다시 실행하면 받은 페이지는 건너뛰고 이어서 받는다.
 표준 라이브러리만 사용한다 (설치 불필요).
 """
@@ -35,6 +37,7 @@ BASE = os.environ.get("SEOUL_API_BASE", "http://openapi.seoul.go.kr:8088") + "/{
 SERVICES = {
     "LOCALDATA_072404": "일반음식점",
     "LOCALDATA_072405": "휴게음식점",
+    "LOCALDATA_072218": "제과점영업",
 }
 PAGE = 1000
 
