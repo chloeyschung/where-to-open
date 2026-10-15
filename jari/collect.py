@@ -41,7 +41,9 @@ for s, t in [("LOCALDATA_072404", "일반"), ("LOCALDATA_072405", "휴게"), ("L
     for r in json.load(open(f"{s}.json")):
         r = {k: (v.strip() if isinstance(v, str) else v) for k, v in r.items()}; r["_t"] = t; rows.append(r)
 uniq = {}
-for r in rows: uniq[(r["OPNSFTEAMCODE"], r["MGTNO"])] = r
+for r in rows:  # 같은 관리번호가 여러 번 오면 가장 최근에 수정된 행을 남긴다
+    k = (r["OPNSFTEAMCODE"], r["MGTNO"])
+    if k not in uniq or r["UPDATEDT"] >= uniq[k]["UPDATEDT"]: uniq[k] = r
 rows = list(uniq.values())
 for r in rows:
     r["_k"] = jibun_key(r["SITEWHLADDR"])
@@ -50,6 +52,9 @@ keys = sorted({r["_k"] for r in rows if r["_k"]})
 log("업소", len(rows), "지번키 실패", sum(1 for r in rows if not r["_k"]), "고유 지번", len(keys))
 
 # 3) 지번 → 행정동 (체크포인트 저장)
+def save(d):  # 저장 중에 끊겨도 이전 체크포인트가 깨지지 않게 임시 파일에 쓰고 바꿔 넣는다
+    json.dump(d, open("juso_jibun.json.tmp", "w"), ensure_ascii=False)
+    os.replace("juso_jibun.json.tmp", "juso_jibun.json")
 done = json.load(open("juso_jibun.json")) if os.path.exists("juso_jibun.json") else {}
 # 다시 조회: 처음 보는 지번, 오류 난 지번, 예전 방식(첫 50건만 받음)으로 50건이 꽉 찬 지번
 todo = [k for k in keys if k not in done or "err" in done[k]
@@ -60,7 +65,7 @@ with F.ThreadPoolExecutor(8) as ex:
         done[k] = v
         if "err" in v: log("API 오류", k, v["err"])
         if i % 2000 == 0:
-            json.dump(done, open("juso_jibun.json", "w"), ensure_ascii=False); log("지번", i, "/", len(todo))
-json.dump(done, open("juso_jibun.json", "w"), ensure_ascii=False)
+            save(done); log("지번", i, "/", len(todo))
+save(done)
 log("지번 조회 완료", len(done), "오류", sum(1 for v in done.values() if "err" in v),
     "결과가 잘린 지번", sum(1 for v in done.values() if "total" in v and len(v["hits"]) < v["total"]))

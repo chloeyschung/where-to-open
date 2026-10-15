@@ -13,10 +13,8 @@
 """
 import csv, os, statistics as S, collections as C
 from datetime import date
-from common import ROOT, DATA, jibun_key
+from common import ROOT, DATA, CUT, TODAY, jibun_key
 
-TODAY = date(2026, 10, 12)        # 데이터 수집일
-CUT = date(2016, 10, 12)          # 최근 10년 시작
 MERGE_DAYS = (-30, 90)            # 폐업일 기준 재인허가 허용 범위
 
 
@@ -128,8 +126,11 @@ print(f"최근 10년 영업한 자리: {n:,}곳 (같은 가게로 합친 재인�
 print(f"행정동 붙은 자리: {sum(1 for s in sites if s['hemd_name']) / n:.1%}")
 print(f"단독 점포 자리: {len(singles):,}곳 ({len(singles) / n:.0%}), 여러 점포 건물: {n - len(singles):,}곳")
 print("단독 자리 10년 인허가 건수 분포:", sorted(C.Counter(min(s["permits_10y"], 6) for s in singles).items()), "(6 = 6건 이상)")
-print(f"단독 자리 평균 {S.mean(s['permits_10y'] for s in singles):.2f}건, 4건 이상 {sum(1 for s in singles if s['permits_10y'] >= 4):,}곳")
-print(f"폐업 가게 평균 영업 기간: {S.mean(h['months'] for h in history if h['closed'] and h['closed'] >= CUT.isoformat()):.1f}개월")
+if singles:
+    print(f"단독 자리 평균 {S.mean(s['permits_10y'] for s in singles):.2f}건, 4건 이상 {sum(1 for s in singles if s['permits_10y'] >= 4):,}곳")
+closed_months = [h["months"] for h in history if h["closed"] and h["closed"] >= CUT.isoformat()]
+if closed_months:
+    print(f"폐업 가게 평균 영업 기간: {S.mean(closed_months):.1f}개월")
 dong_avgs = sorted(((k, S.mean(v), len(v)) for k, v in single.items() if len(v) >= 30), key=lambda x: x[1])
 print("단독 자리 30곳 이상 행정동 중 평균 교체가 많은 곳:", [(f"{k[0]} {k[1]}", round(a, 2)) for k, a, _ in dong_avgs[-5:][::-1]])
 print("적은 곳:", [(f"{k[0]} {k[1]}", round(a, 2)) for k, a, _ in dong_avgs[:5]])
