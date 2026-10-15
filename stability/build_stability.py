@@ -102,7 +102,7 @@ def load_raw(raw_dir, overrides=None):
     for svc, name in SOURCES.items():
         p = overrides.get(svc) or os.path.join(raw_dir, f"{svc}.csv")
         if not os.path.exists(p):
-            raise FileNotFoundError(f"{p} 가 없습니다. 먼저 collect.py 를 실행하세요.")
+            raise SystemExit(f"\n{p} 가 없습니다. 먼저 python3 collect.py 로 수집하세요.")
         frames.append(read_one(p, name))
     df = pd.concat(frames, ignore_index=True)
     for c in df.columns:
@@ -170,11 +170,34 @@ def clean(df, rules, q):
 
 
 # ---------------------------------------------------------------- 행정동 매핑
+def download(url, path):
+    """Mac python.org 파이썬의 SSL 인증서 오류를 피하려고 certifi 인증서를 쓴다.
+    받는 중 끊겨도 반쪽 파일이 남지 않게 .part 로 받은 뒤 이름을 바꾼다."""
+    import ssl
+    try:
+        import certifi
+        ctx = ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        ctx = ssl.create_default_context()
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    part = path + ".part"
+    try:
+        with urllib.request.urlopen(url, context=ctx, timeout=120) as r, open(part, "wb") as f:
+            while chunk := r.read(1 << 20):
+                f.write(chunk)
+    except Exception as e:
+        if os.path.exists(part):
+            os.remove(part)
+        raise SystemExit(
+            f"\n행정동 경계 파일 다운로드 실패: {e}\n"
+            f"브라우저로 아래 주소를 열어 파일을 받은 뒤 {path} 위치에 넣고 다시 실행하세요.\n  {url}")
+    os.replace(part, path)
+
+
 def load_boundary(path):
     if not os.path.exists(path):
-        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        print(f"행정동 경계 다운로드: {BOUNDARY_URL}")
-        urllib.request.urlretrieve(BOUNDARY_URL, path)
+        print(f"  행정동 경계 다운로드 (약 35MB): {BOUNDARY_URL}")
+        download(BOUNDARY_URL, path)
     g = gpd.read_file(path)
     g = g[g["sidonm"] == "서울특별시"].copy()
     g["행정동코드"] = g["adm_cd2"].str.slice(0, 8)   # 서울 생활인구·상권분석 데이터와 같은 8자리
@@ -309,9 +332,15 @@ def main():
 
     rules = load_category_map(a.category_map)
     q["입력"] = {k: overrides.get(k, os.path.join(a.raw, f"{k}.csv")) for k in SOURCES}
+    print("[1/4] 원본 읽기·정제")
     df = clean(load_raw(a.raw, overrides), rules, q)
+    print(f"  업소 {len(df):,}건")
+    print("[2/4] 행정동 경계 준비")
     g = load_boundary(a.boundary)
+    print("[3/4] 좌표 → 행정동 매핑")
     df = map_dong(df, g, q)
+    print(f"  매핑률 {q['행정동_매핑률']:.1%} (좌표계 {q['채택_좌표계']})")
+    print("[4/4] 지표 집계·저장")
 
     # 업태 매핑 검토표
     (df.groupby(["원천", "UPTAENM", "업종대분류"]).size().rename("건수").reset_index()
