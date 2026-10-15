@@ -55,7 +55,9 @@ for key, raw in by_site.items():
                      if norm(p["name"]) == norm(s["name"]) and p["close"]
                      and MERGE_DAYS[0] <= (s["open"] - p["close"]).days <= MERGE_DAYS[1]), None)
         if prev:
-            prev["close"] = s["close"]; prev["ids"] += s["ids"]; merged_total += 1
+            # 새 허가가 이전 폐업보다 먼저 날 수 있어, 더 늦은 폐업일을 남긴다 (둘 중 하나라도 영업 중이면 영업 중)
+            prev["close"] = None if s["close"] is None or prev["close"] is None else max(prev["close"], s["close"])
+            prev["ids"] += s["ids"]; merged_total += 1
             if s["dong"][1]: prev["dong"] = s["dong"]
         else:
             stores.append(s)
