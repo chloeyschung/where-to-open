@@ -32,7 +32,7 @@ for k, v in raw.items():
         amb += 1
 
 # 2) 도로명 재조회: 지번으로 못 찾은 업소의 도로명주소
-road_pat = re.compile(r"^서울특별시 (\S+구) (\S+(?:로|길)\S*\s+\d+(?:-\d+)?)")
+road_pat = re.compile(r"^서울특별시 (\S+구) (\S+(?:로|길)\S*\s+(?:지하\s+)?\d+(?:-\d+)?)")  # "세종대로 지하 2" 포함
 need = {}
 for r in rows:
     if r["_k"] in by_key:

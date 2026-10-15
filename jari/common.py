@@ -19,7 +19,12 @@ JIBUN_PAT = re.compile(r"^서울특별시 (\S+구) (\S+) (산\s*)?(\d+(?:-\d+)?)
 
 def jibun_key(addr):
     m = JIBUN_PAT.match(addr or "")
-    return f"{m.group(1)} {m.group(2)} {'산' if m.group(3) else ''}{m.group(4)}" if m else None
+    if not m:
+        return None
+    lot = m.group(4)
+    if lot.endswith("-0"):  # "106-0"은 "106"과 같은 지번. 그대로 두면 다른 자리로 갈리고 주소 검색도 0건
+        lot = lot[:-2]
+    return f"{m.group(1)} {m.group(2)} {'산' if m.group(3) else ''}{lot}"
 
 
 def exact_hits(key, res):
