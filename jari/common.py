@@ -21,10 +21,13 @@ def jibun_key(addr):
     m = JIBUN_PAT.match(addr or "")
     if not m:
         return None
-    lot = m.group(4)
-    if lot.endswith("-0"):  # "106-0"은 "106"과 같은 지번. 그대로 두면 다른 자리로 갈리고 주소 검색도 0건
-        lot = lot[:-2]
-    return f"{m.group(1)} {m.group(2)} {'산' if m.group(3) else ''}{lot}"
+    # 번지를 숫자로 맞춘다: "106-0" → "106" (부번 0은 본번과 같은 지번), "256-0257" → "256-257"
+    # 본번 0("0-0", "000")은 번지를 모른다는 뜻이라 자리로 묶지 않는다
+    main, _, sub = m.group(4).partition("-")
+    main, sub = int(main), int(sub or 0)
+    if main == 0:
+        return None
+    return f"{m.group(1)} {m.group(2)} {'산' if m.group(3) else ''}{main}{f'-{sub}' if sub else ''}"
 
 
 def exact_hits(key, res):
