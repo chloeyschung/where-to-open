@@ -22,7 +22,7 @@
 ```bash
 pip install -r requirements.txt
 python permits_prep.py --cafe cafe.csv --bakery bakery.csv --restaurant restaurant.csv \
-    --dong HangJeongDong_ver20260701.geojson --fill ../jari/dong_fill.csv
+  --dong HangJeongDong_ver20260701.geojson --fill ../jari/dong_fill.csv --repo ..
 ```
 
 `--asof`(기본 2026-09-30)는 공통 규칙 2의 기준일입니다.
@@ -70,6 +70,7 @@ python permits_prep.py --cafe cafe.csv --bakery bakery.csv --restaurant restaura
 - 공용 파일 703,315곳 (영업중 161,435, 폐업 등 541,880)
 - 행정동 배정: 좌표 638,138곳 + 주소 보충 28,895곳. 남은 빈칸 36,282곳 (영업중 935곳)
 - 경쟁용 기준일 영업중: 한식 50,592 / 카페 17,012 / 제과점 4,276
+- 팝업·행사 매장(`is_temp`) 19,932곳, 폐업일 없는 폐업(`close_date_missing`) 31곳. 둘 다 기준일 영업중에는 원래 해당 없어 경쟁 밀도는 변하지 않음
 - 카페 밀도 상위: 명동, 서교동, 광희동, 대치4동, 을지로동
 
 ## 한계
