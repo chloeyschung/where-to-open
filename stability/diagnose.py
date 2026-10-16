@@ -14,10 +14,12 @@ import os
 
 import pandas as pd
 
+from temp_rule import jibun_key
+
 
 def building_key(addr):
-    """지번주소에서 건물 단위(구 + 동 + 번지)만 남긴다. '... 145-117 (지상1층)' → '... 145-117'"""
-    return addr.fillna("").str.extract(r"^(서울특별시\s+\S+구\s+\S+\s+(?:산\s*)?\d+(?:-\d+)?)")[0]
+    """건물(지번) 단위 키 — 팝업 판정(temp_rule)과 같은 jibun_key 를 쓴다"""
+    return addr.fillna("").map(jibun_key)
 
 
 def main():

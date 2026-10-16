@@ -30,10 +30,10 @@
   (분모가 --min-n 미만이면 비율을 비우고 표본부족 표시)
 
 임시·팝업 인허가 제외 (지표 계산에서만 빼고 stores_clean.csv 에는 '임시영업' 표시로 남긴다)
-  ① 사업장명에 '한시적·임시·팝업·행사' 가 들어간 업소
-  ② '다발 건물'에서 90일 안에 폐업한 업소
-     다발 건물 = 최근 3년 인허가 30건 이상이고 그중 절반 이상이 90일 안에 폐업한 건물(지번 단위)
-     → 백화점·복합몰 팝업, 축제·행사장 부스. 같은 건물이라도 오래 영업한 입점 매장은 남긴다
+  판정은 temp_rule.py (공통 규칙 5) — 공용 파일 permits_base.csv 의 is_temp 와 같은 함수
+  ① 상호에 '한시적·임시·팝업·행사' + 90일 안 폐업
+  ② 다발 건물(기준일 전 3년 인허가 30건 이상, 절반 이상 90일 안 폐업)에서 90일 안 폐업
+  기준일 뒤 인허가·폐업은 판정에 쓰지 않는다
 
 영업상태 처리
   폐업         → 폐업일자(DCBYMD) 기준으로 폐업 처리. 폐업일 없는 건은 시점 지표에서 제외
@@ -54,12 +54,12 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 
+from temp_rule import temp_detail
+
 BOUNDARY_URL = ("https://raw.githubusercontent.com/vuski/admdongkor/master/"
                 "ver20260701/HangJeongDong_ver20260701.geojson")
 SOURCES = {"LOCALDATA_072404": "일반음식점", "LOCALDATA_072405": "휴게음식점", "LOCALDATA_072218": "제과점"}
 OPTIONAL = {"LOCALDATA_072218"}   # 없어도 실행은 되게 (경고 후 제외)
-TEMP_NAME = r"한시적|임시\s*영업|임시매장|팝업|pop[\s-]?up|행사"
-HOT_MIN, HOT_SHORT_SHARE, SHORT_DAYS = 30, 0.5, 90
 CRS_CANDIDATES = ["EPSG:5174", "EPSG:5181"]  # 문서상 5174, 신규 데이터셋 설명은 GRS80(5181) → 실측으로 결정
 ALL = "전체(음식·카페)"
 
@@ -186,30 +186,16 @@ def clean(df, rules, q):
 
 
 # ---------------------------------------------------------------- 임시·팝업 판별
-def building_key(addr):
-    """지번주소에서 건물 단위(구 + 동 + 번지)만 남긴다. '... 145-117 (지상1층)' → '... 145-117'"""
-    return addr.fillna("").str.extract(r"^(서울특별시\s+\S+구\s+\S+\s+(?:산\s*)?\d+(?:-\d+)?)")[0]
-
-
 def flag_temporary(df, base_date, q):
-    B = pd.Timestamp(base_date)
-    life = (df["폐업일"] - df["인허가일"]).dt.days
-    short = (df["상태구분"] == "폐업") & (life <= SHORT_DAYS)
-    by_name = df["BPLCNM"].fillna("").str.contains(TEMP_NAME, case=False, regex=True)
-
-    bld = building_key(df["SITEWHLADDR"])
-    recent = (df["인허가일"] > B - pd.DateOffset(years=3)) & bld.notna()
-    st = pd.DataFrame({"건물": bld[recent], "단기": short[recent]}).groupby("건물")["단기"].agg(["size", "mean"])
-    hot = st[(st["size"] >= HOT_MIN) & (st["mean"] >= HOT_SHORT_SHARE)].index
-    in_hot = bld.isin(hot)
-    by_hot = in_hot & short
-
-    df["임시영업"] = by_name | by_hot
+    """공통 규칙 5 — 판정은 temp_rule.py 한 곳에서 (공용 파일 is_temp 와 같은 함수)"""
+    d = temp_detail(df, base_date, name="BPLCNM", addr="SITEWHLADDR",
+                    open_col="인허가일", close_col="폐업일", status="상태구분")
+    df["임시영업"] = d["is_temp"]
     q["임시영업_제외"] = {
-        "사업장명_기준": int(by_name.sum()),
-        "다발건물_90일내폐업": int((by_hot & ~by_name).sum()),
-        "합계": int(df["임시영업"].sum()),
-        "다발건물_수": int(len(hot)),
+        "사업장명_기준": int(d["이름해당"].sum()),
+        "다발건물_90일내폐업": int((d["다발건물"] & ~d["이름해당"]).sum()),
+        "합계": int(d["is_temp"].sum()),
+        "다발건물_수": int(d.loc[d["다발건물"], "지번키"].nunique()),
         "업종별": df.loc[df["임시영업"], "업종대분류"].value_counts().to_dict(),
     }
     return df
