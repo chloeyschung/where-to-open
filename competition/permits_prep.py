@@ -6,10 +6,13 @@
   --bakery      서울시 제과점영업 인허가 정보 CSV
   --restaurant  서울시 일반음식점 인허가 정보 CSV
   --dong        HangJeongDong_ver20260701.geojson (github.com/vuski/admdongkor)
+  --fill        (선택) jari/dong_fill.csv. 좌표가 없는 업소의 행정동을 주소 기준으로 채움
+  --asof        기준일, 기본 2026-09-30 (공통 규칙 2)
+  --repo        (선택) where-to-open 저장소 폴더. stability/temp_rule.py로 팝업 판정 (공통 규칙 5)
 
 [실행]
   python3 permits_prep.py --cafe cafe.csv --bakery bakery.csv --restaurant restaurant.csv \
-      --dong HangJeongDong_ver20260701.geojson
+      --dong HangJeongDong_ver20260701.geojson --fill ../jari/dong_fill.csv
 
 [출력]
   1) permits_base.csv        공용 파일 (자리 팀 공유용)
@@ -63,8 +66,8 @@ REQUIRED = {"mgt_no", "uptae", "status", "permit_date", "x", "y"}
 # 공용 파일 컬럼 (자리 팀 요청 순서)
 BASE_COLUMNS = [
     "mgt_no", "name", "uptae", "permit_date", "close_date", "status",
-    "jibun_addr", "road_addr", "lon", "lat", "adm_cd", "adm_nm",
-    "gu", "source", "category", "is_open",
+    "jibun_addr", "road_addr", "lon", "lat", "adm_cd", "adm_nm", "dong_via",
+    "gu", "source", "category", "is_open", "close_date_missing", "is_temp",
 ]
 
 
@@ -133,6 +136,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cafe"); ap.add_argument("--bakery"); ap.add_argument("--restaurant")
     ap.add_argument("--dong", required=True, help="행정동 경계 geojson")
+    ap.add_argument("--fill", help="좌표가 없는 업소의 행정동 보충표 (jari/dong_fill.csv)")
+    ap.add_argument("--asof", default="2026-09-30", help="기준일 (공통 규칙 2). 경쟁 밀도는 이날 영업중인 곳만 셈")
+    ap.add_argument("--repo", help="where-to-open 저장소 폴더. 주면 stability/temp_rule.py로 팝업(is_temp) 판정")
     args = ap.parse_args()
     files = {k: getattr(args, k) for k in CATEGORY_RULES if getattr(args, k)}
     if not files:
@@ -168,6 +174,9 @@ def main():
 
     df["is_open"] = df["status"].str.contains("영업", na=False) & \
         ~df["status"].str.contains("폐업", na=False)
+    # 공통 규칙 4: 폐업했는데 폐업일이 빈 가게. 지우지 않고 표시만
+    df["close_date_missing"] = (df["status"] == "폐업") & df["close_date"].isna()
+    print(f"  - 폐업일 없는 폐업 가게 표시: {int(df['close_date_missing'].sum())}건")
 
     print("[3] 좌표 변환 (EPSG:5174 -> 위경도)")
     df["x"] = pd.to_numeric(df["x"], errors="coerce")
@@ -177,7 +186,7 @@ def main():
     lon, lat = tf.transform(df.loc[has, "x"].values, df.loc[has, "y"].values)
     df.loc[has, "lon"] = lon
     df.loc[has, "lat"] = lat
-    print(f"  - 좌표 없음: {int((~has).sum()):,}건 (행정동 미배정으로 남김)")
+    print(f"  - 좌표 없음: {int((~has).sum()):,}건 (아래 4-2에서 주소로 보충)")
 
     print("[4] 행정동 붙이기")
     geoms, dongs = load_dongs(args.dong)
@@ -194,7 +203,30 @@ def main():
     no_dong = has.sum() - len(match)
     print(f"  - 행정동 배정 {len(match):,}건 / 좌표는 있는데 서울 경계 밖 {int(no_dong):,}건")
 
-    # 좌표가 없어 행정동을 못 붙인 곳도 구 이름은 주소에서 채움
+    df["dong_via"] = None
+    df.loc[match.index, "dong_via"] = "coord"
+
+    # [4-2] 좌표로 못 붙인 업소는 자리 축이 주소로 찾은 행정동으로 채움
+    if args.fill:
+        fill = pd.read_csv(args.fill, dtype=str, encoding="utf-8-sig")
+        fill = fill.drop_duplicates(["source", "mgt_no"]) \
+                   .set_index(["source", "mgt_no"])[["adm_cd", "adm_nm", "gu", "via"]]
+        key = pd.MultiIndex.from_frame(df[["source", "mgt_no"]])
+        f = fill.reindex(key)
+        f.index = df.index
+        empty = df["adm_cd"].isna() & f["adm_cd"].notna()
+        valid = f["adm_cd"].isin(dongs["adm_cd"])
+        bad_code = int((empty & ~valid).sum())
+        empty &= valid
+        for c in ["adm_cd", "adm_nm", "gu"]:
+            df.loc[empty, c] = f.loc[empty, c]
+        df.loc[empty, "dong_via"] = f.loc[empty, "via"]
+        print(f"  - 주소로 행정동 채움 {int(empty.sum()):,}건 (영업중 {int((empty & df['is_open']).sum()):,})"
+              + (f" / 기준표에 없는 코드라 건너뜀 {bad_code}건" if bad_code else ""))
+    print(f"  - 최종 행정동 빈칸 {int(df['adm_cd'].isna().sum()):,}건 "
+          f"(영업중 {int((df['adm_cd'].isna() & df['is_open']).sum()):,})")
+
+    # 그래도 빈 곳은 구 이름만이라도 주소에서 채움
     gu_from_addr = addr.loc[df.index].str.extract(r"^서울\S*\s+(\S+구)")[0]
     df["gu"] = df["gu"].fillna(gu_from_addr)
 
@@ -203,9 +235,28 @@ def main():
     print("[5] 저장")
     for c in ["permit_date", "close_date"]:
         df[c] = df[c].dt.strftime("%Y-%m-%d")
+
+    # 공통 규칙 5: 팝업·행사 매장 (안정성 축 stability/temp_rule.py)
+    df["is_temp"] = False
+    if args.repo:
+        import os
+        sys.path.insert(0, os.path.join(args.repo, "stability"))
+        sys.path.insert(0, os.path.join(args.repo, "jari"))
+        from temp_rule import flag_temporary
+        cols = ["name", "jibun_addr", "permit_date", "close_date", "status"]
+        df["is_temp"] = flag_temporary(df[cols].copy(), args.asof).reindex(df.index).fillna(False).astype(bool)
+        print(f"  - 팝업·행사 매장 표시: {int(df['is_temp'].sum()):,}건")
+    else:
+        print("  - 팝업 판정 건너뜀 (--repo 없음, is_temp 전부 False)")
+
     df[BASE_COLUMNS].to_csv("permits_base.csv", index=False, encoding="utf-8-sig")
 
-    comp = df[df["category"].notna() & df["is_open"]]
+    # 공통 규칙 2: 기준일에 영업중 = 기준일 전 인허가, 폐업일이 비었거나 기준일 뒤, 폐업일 없는 폐업 아님
+    asof = pd.Timestamp(args.asof)
+    pd_ = pd.to_datetime(df["permit_date"]); cd_ = pd.to_datetime(df["close_date"])
+    open_asof = (pd_ <= asof) & (cd_.isna() | (cd_ > asof)) & ~df["close_date_missing"]
+    comp = df[df["category"].notna() & open_asof & ~df["is_temp"]]
+    print(f"  - 기준일 {args.asof} 영업중으로 셈 (status 기준 {int((df['category'].notna() & df['is_open']).sum()):,} → {len(comp):,})")
     comp[BASE_COLUMNS].to_csv("competition_open.csv", index=False, encoding="utf-8-sig")
 
     dongs.to_csv("dong_area.csv", index=False, encoding="utf-8-sig")
@@ -221,7 +272,7 @@ def main():
 
     print("\n[완료]")
     print(f"  permits_base.csv        {len(df):>9,}건 (영업중 {int(df['is_open'].sum()):,} / 폐업 등 {int((~df['is_open']).sum()):,})")
-    print(f"  competition_open.csv    {len(comp):>9,}건")
+    print(f"  competition_open.csv    {len(comp):>9,}건 (기준일 {args.asof})")
     print(comp["category"].value_counts().to_string())
     print(f"  competition_by_dong.csv {len(by):>9,}개 행정동")
 
