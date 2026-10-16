@@ -4,8 +4,8 @@ from datetime import date
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 DATA = os.path.join(ROOT, "data", "seoul")
-TODAY = date(2026, 10, 12)  # 데이터 수집일
-CUT = date(2016, 10, 12)    # 최근 10년 시작
+BASE = date(2026, 9, 30)    # 팀 공통 기준일 (docs/common-rules.md 규칙 2). 이 날 뒤의 인허가·폐업은 쓰지 않는다
+CUT = date(2016, 9, 30)     # 최근 10년 시작
 
 
 def env():

@@ -8,18 +8,24 @@
 - 같은 자리 + 같은 상호 + 폐업 30일 전 ~ 폐업 후 90일 안에 다시 인허가 → 한 가게로 합친다
   (주인 변경·업종 전환 때 관리번호가 새로 나오기 때문. 새 허가가 옛 허가 폐업 신고보다 먼저 나는 경우가 있어 30일 겹침을 허용)
 - 상태는 폐업인데 폐업일이 빈 업소는 언제 닫았는지 몰라 뺀다
+- 백화점·행사 팝업(공용 파일 is_temp)은 뺀다
+- 기준일(BASE) 뒤에 난 인허가는 빼고, 기준일 뒤에 폐업한 가게는 기준일에 영업 중으로 본다
 - 최근 10년 안에 영업한 가게가 하나라도 있는 자리만 남긴다
 - 최대 동시 영업 수가 2 이상이면 여러 점포 건물로 보고, 한 칸당 교체 횟수로 비교한다
 """
 import csv, os, statistics as S, collections as C
 from datetime import date
-from common import ROOT, DATA, CUT, TODAY, jibun_key
+from common import ROOT, DATA, CUT, BASE, jibun_key
 
 MERGE_DAYS = (-30, 90)            # 폐업일 기준 재인허가 허용 범위
 
 
 def d(s):
     return date(int(s[:4]), int(s[5:7]), int(s[8:10])) if s else None
+
+
+def flag(r, col):
+    return r.get(col, "").strip().lower() in ("true", "1")
 
 
 def norm(name):
@@ -30,14 +36,23 @@ def norm(name):
 fill = {r["mgt_no"]: (r["gu"], r["adm_cd"], r["adm_nm"])
         for r in csv.DictReader(open(os.path.join(ROOT, "jari", "dong_fill.csv"), encoding="utf-8-sig"))}
 
-by_site, no_close = C.defaultdict(list), 0
+by_site, no_close, temp, after = C.defaultdict(list), 0, 0, 0
 for r in csv.DictReader(open(os.path.join(ROOT, "data", "base", "permits_base.csv"), encoding="utf-8-sig")):
     key = jibun_key(r["jibun_addr"])
     if not key or not r["permit_date"]:
         continue
-    if r["status"] == "폐업" and not r["close_date"]:   # 폐업일이 없으면 지금 영업 중으로 잘못 셈
+    # 폐업일이 없으면 지금 영업 중으로 잘못 셈. close_date_missing 열이 없던 공용 파일도 상태로 같이 거른다
+    if flag(r, "close_date_missing") or (r["status"] == "폐업" and not r["close_date"]):
         no_close += 1
         continue
+    if flag(r, "is_temp"):
+        temp += 1
+        continue
+    if r["permit_date"] > BASE.isoformat():
+        after += 1
+        continue
+    if r["close_date"] > BASE.isoformat():   # 기준일에는 영업 중이었다
+        r["close_date"] = ""
     r["_dong"] = (r["gu"], r["adm_cd"], r["adm_nm"]) if r["adm_cd"] else fill.get(r["mgt_no"], ("", "", ""))
     by_site[key].append(r)
 
@@ -62,12 +77,12 @@ for key, raw in by_site.items():
         else:
             stores.append(s)
 
-    recent = [s for s in stores if (s["close"] or TODAY) >= CUT]
+    recent = [s for s in stores if (s["close"] or BASE) >= CUT]
     if not recent:
         continue
 
     # 최대 동시 영업 수 (최근 10년 안에 영업한 가게 기준)
-    events = sorted([(max(s["open"], CUT), 1) for s in recent] + [((s["close"] or TODAY), -1) for s in recent],
+    events = sorted([(max(s["open"], CUT), 1) for s in recent] + [((s["close"] or BASE), -1) for s in recent],
                     key=lambda e: (e[0], e[1]))
     cur = peak = 0
     for _, step in events:
@@ -96,7 +111,7 @@ for key, raw in by_site.items():
             "site_key": key, "mgtno": " ".join(s["ids"]), "name": s["name"], "kind": s["kind"],
             "uptae": s["uptae"], "opened": s["open"].isoformat(),
             "closed": s["close"].isoformat() if s["close"] else "",
-            "months": round(((s["close"] or TODAY) - s["open"]).days / 30.44),
+            "months": round(((s["close"] or BASE) - s["open"]).days / 30.44),
             "merged": len(s["ids"]) - 1,
         })
 
@@ -124,7 +139,8 @@ for name, rows in [("sites.csv", sites), ("site_history.csv", history)]:
 # 요약
 n = len(sites)
 singles = [s for s in sites if s["max_concurrent"] == 1]
-print(f"최근 10년 영업한 자리: {n:,}곳 (같은 가게로 합친 재인허가 {merged_total:,}건, 폐업일이 없어 뺀 폐업 업소 {no_close:,}곳)")
+print(f"기준일 {BASE}, 최근 10년 영업한 자리: {n:,}곳")
+print(f"  같은 가게로 합친 재인허가 {merged_total:,}건, 뺀 업소: 폐업일 없음 {no_close:,} / 팝업 {temp:,} / 기준일 뒤 인허가 {after:,}")
 print(f"행정동 붙은 자리: {sum(1 for s in sites if s['hemd_name']) / n:.1%}")
 print(f"단독 점포 자리: {len(singles):,}곳 ({len(singles) / n:.0%}), 여러 점포 건물: {n - len(singles):,}곳")
 print("단독 자리 10년 인허가 건수 분포:", sorted(C.Counter(min(s["permits_10y"], 6) for s in singles).items()), "(6 = 6건 이상)")
