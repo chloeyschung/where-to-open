@@ -1,3 +1,5 @@
+import argparse
+import json
 import os
 import re
 from io import BytesIO
@@ -5,13 +7,46 @@ from pathlib import Path
 
 import pandas as pd
 import requests
-from dotenv import load_dotenv
 
 
-load_dotenv(Path(__file__).with_name(".env"))
-
+ROOT = Path(__file__).resolve().parent.parent
 API_BASE_URL = "http://openapi.seoul.go.kr:8088"
-API_KEY_ENV = "SEOUL_OPENAPI_KEY"
+API_KEY_ENV = "SEOUL_API_KEY"  # 저장소 맨 위 .env (다른 축과 같은 키)
+
+# 같은 역인데 기간(이름 변경)이나 노선(환승역)에 따라 이름이 다른 경우 → 이름 하나로 합친다
+# 역사마스터 좌표로 같은 위치인 것을 확인함. 새절(신사)와 신사, 용산과 신용산처럼 가까워도 다른 역은 합치지 않는다
+STATION_ALIASES = {
+    "당고개": "불암산",                              # 4호선, 2025-04 이름 변경
+    "삼각지": "삼각지(전쟁기념관)",                   # 4·6호선, 2025-04 이름 변경
+    "숙대입구(갈월)": "숙대입구(서울시교육청)",       # 4호선, 2026-07 이름 변경
+    "이수": "총신대입구(이수)",                      # 7호선 이름. 4호선은 총신대입구(이수)인 같은 환승역
+}
+# 이름은 같지만 노선에 따라 다른 역 → 노선을 붙여 나눈다 (역사마스터 좌표가 714m, 53km 떨어짐)
+LINE_SPECIFIC_NAMES = {
+    ("신촌", "경의선"): "신촌(경의중앙선)",   # 2호선 신촌과 다른 역
+    ("양평", "중앙선"): "양평(중앙선)",       # 경기 양평군. 5호선 양평(영등포구)과 다른 역
+}
+
+
+def _unify_station_names(df):
+    """노선별로 다른 같은 이름을 먼저 나누고, 같은 역의 다른 이름을 하나로 합친다."""
+    for (name, line), new_name in LINE_SPECIFIC_NAMES.items():
+        df.loc[(df["SUB_STA_NM"] == name) & (df["LINE_NUM"] == line), "SUB_STA_NM"] = new_name
+    df["SUB_STA_NM"] = df["SUB_STA_NM"].replace(STATION_ALIASES)
+    return df
+
+
+def _load_root_env():
+    """저장소 맨 위 .env 를 환경변수로 읽는다 (이미 설정된 값은 그대로)."""
+    path = ROOT / ".env"
+    if path.exists():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if "=" in line and not line.lstrip().startswith("#"):
+                name, value = line.split("=", 1)
+                os.environ.setdefault(name.strip(), value.strip())
+
+
+_load_root_env()
 DAILY_ARCHIVE_PAGE = "https://data.seoul.go.kr/dataList/OA-12914/S/1/datasetView.do"
 DAILY_ARCHIVE_DOWNLOAD = (
     "https://datafile.seoul.go.kr/bigfile/iot/inf/nio_download.do?&useCache=false"
@@ -72,8 +107,9 @@ def _get_api_key():
     return api_key
 
 
-def get_daily_subway_data(start_date, end_date):
-    """월별 CSV 아카이브에서 과거 일별 역별 승하차 데이터를 수집한다."""
+def get_daily_subway_data(start_date, end_date, cache_dir=None):
+    """월별 CSV 아카이브에서 과거 일별 역별 승하차 데이터를 수집한다.
+    cache_dir 를 주면 받은 월 파일을 저장해 두고 다음 실행에 다시 쓴다."""
     start = pd.to_datetime(start_date, format="%Y%m%d")
     end = pd.to_datetime(end_date, format="%Y%m%d")
     months = pd.period_range(start.to_period("M"), end.to_period("M"), freq="M")
@@ -111,24 +147,32 @@ def get_daily_subway_data(start_date, end_date):
 
         for month in months:
             month_key = month.strftime("%Y%m")
-            response = session.post(
-                DAILY_ARCHIVE_DOWNLOAD,
-                data={"infId": "OA-12914", "infSeq": "3", "seq": archive_ids[month_key]},
-                headers={"Referer": DAILY_ARCHIVE_PAGE},
-                timeout=60,
-            )
-            response.raise_for_status()
-            if response.content.startswith(b"<html"):
-                raise RuntimeError(f"{month_key} 일별 CSV 다운로드에 실패했습니다.")
+            cached = Path(cache_dir) / f"daily_{month_key}.csv" if cache_dir else None
+            if cached and cached.exists():
+                content = cached.read_bytes()
+            else:
+                response = session.post(
+                    DAILY_ARCHIVE_DOWNLOAD,
+                    data={"infId": "OA-12914", "infSeq": "3", "seq": archive_ids[month_key]},
+                    headers={"Referer": DAILY_ARCHIVE_PAGE},
+                    timeout=60,
+                )
+                response.raise_for_status()
+                if response.content.startswith(b"<html"):
+                    raise RuntimeError(f"{month_key} 일별 CSV 다운로드에 실패했습니다.")
+                content = response.content
+                if cached:
+                    cached.parent.mkdir(parents=True, exist_ok=True)
+                    cached.write_bytes(content)
 
             csv_options = {"dtype": str, "usecols": range(6)}
             try:
                 monthly_df = pd.read_csv(
-                    BytesIO(response.content), encoding="utf-8-sig", **csv_options
+                    BytesIO(content), encoding="utf-8-sig", **csv_options
                 )
             except UnicodeDecodeError:
                 monthly_df = pd.read_csv(
-                    BytesIO(response.content), encoding="cp949", **csv_options
+                    BytesIO(content), encoding="cp949", **csv_options
                 )
 
             monthly_df = monthly_df.rename(
@@ -143,12 +187,18 @@ def get_daily_subway_data(start_date, end_date):
             monthly_frames.append(monthly_df[columns])
 
     df = pd.concat(monthly_frames, ignore_index=True)
+    duplicated = int(df.duplicated(["USE_DT", "LINE_NUM", "SUB_STA_NM"]).sum())
+    if duplicated:
+        print(f"  일별: 같은 날·노선·역 중복 {duplicated}행 제거")
+        df = df.drop_duplicates(["USE_DT", "LINE_NUM", "SUB_STA_NM"], keep="last")
     df["USE_DT"] = pd.to_datetime(df["USE_DT"], format="%Y%m%d")
+    df = _unify_station_names(df)
     return df[df["USE_DT"].between(start, end)].copy()
 
 
-def get_time_subway_data(start_month, end_month):
-    """월별 역별 시간대 승하차 데이터(OA-12252)를 지정 기간 동안 수집한다."""
+def get_time_subway_data(start_month, end_month, cache_dir=None):
+    """월별 역별 시간대 승하차 데이터(OA-12252)를 지정 기간 동안 수집한다.
+    API가 같은 달 행을 두 번씩 돌려주는 경우가 있어(2026-03, 2026-07 확인) 완전히 같은 행은 하나만 남긴다."""
     api_key = _get_api_key()
     months = pd.period_range(
         pd.Period(start_month, freq="M"), pd.Period(end_month, freq="M"), freq="M"
@@ -157,11 +207,24 @@ def get_time_subway_data(start_month, end_month):
 
     with requests.Session() as session:
         for month in months:
-            rows.extend(
-                _fetch_rows(
-                    "CardSubwayTime", month.strftime("%Y%m"), api_key, session
-                )
-            )
+            month_key = month.strftime("%Y%m")
+            cached = Path(cache_dir) / f"time_{month_key}.json" if cache_dir else None
+            if cached and cached.exists():
+                month_rows = json.loads(cached.read_text(encoding="utf-8"))
+            else:
+                month_rows = _fetch_rows("CardSubwayTime", month_key, api_key, session)
+                if cached:
+                    cached.parent.mkdir(parents=True, exist_ok=True)
+                    cached.write_text(json.dumps(month_rows, ensure_ascii=False), encoding="utf-8")
+            month_df = pd.DataFrame(month_rows)
+            if len(month_df):
+                # 같은 달·노선·역이 두 번 오면 하나만 남긴다 (등록일만 다른 행도 포함)
+                keys = ["USE_MM", "SBWY_ROUT_LN_NM", "STTN"]
+                duplicated = int(month_df.duplicated(keys).sum())
+                if duplicated:
+                    print(f"  시간대 {month_key}: 같은 달·노선·역 중복 {duplicated}행 제거")
+                month_df = month_df.drop_duplicates(keys, keep="last")
+            rows.extend(month_df.to_dict("records"))
 
     identity_columns = ["USE_MM", "LINE_NUM", "SUB_STA_NM"]
     hourly_columns = {
@@ -185,14 +248,15 @@ def get_time_subway_data(start_month, end_month):
             **hourly_columns,
         }
     )
+    df = _unify_station_names(df)
     return df[columns]
 
 
-def build_station_demand(start_date=START_DATE, end_date=END_DATE):
+def build_station_demand(start_date=START_DATE, end_date=END_DATE, cache_dir=None):
     start_month = pd.to_datetime(start_date, format="%Y%m%d").strftime("%Y-%m")
     end_month = pd.to_datetime(end_date, format="%Y%m%d").strftime("%Y-%m")
-    df_daily = get_daily_subway_data(start_date, end_date)
-    df_time = get_time_subway_data(start_month, end_month)
+    df_daily = get_daily_subway_data(start_date, end_date, cache_dir)
+    df_time = get_time_subway_data(start_month, end_month, cache_dir)
 
     if df_daily.empty or df_time.empty:
         raise RuntimeError("지정한 기간의 지하철 데이터를 가져오지 못했습니다.")
@@ -214,12 +278,13 @@ def build_station_demand(start_date=START_DATE, end_date=END_DATE):
         .unstack()
         .reindex(columns=[0, 1])
     )
-    daily_grouped.columns = ["평일_평균_유동인구", "주말_평균_유동인구"]
-    daily_grouped["상권_기초체력(총인원)"] = (
-        daily_grouped["평일_평균_유동인구"] + daily_grouped["주말_평균_유동인구"]
-    )
-    weekday_average = daily_grouped["평일_평균_유동인구"]
-    daily_grouped["주말_평일_비율"] = daily_grouped["주말_평균_유동인구"].div(
+    # 승차 + 하차 인원의 하루 평균 (한 사람이 타고 내리면 두 번 셈. 유동인구가 아님)
+    daily_grouped.columns = ["평일_일평균_승하차", "주말_일평균_승하차"]
+    daily_grouped["주간_일평균_승하차"] = (
+        daily_grouped["평일_일평균_승하차"] * 5 + daily_grouped["주말_일평균_승하차"] * 2
+    ) / 7
+    weekday_average = daily_grouped["평일_일평균_승하차"]
+    daily_grouped["주말_평일_비율"] = daily_grouped["주말_일평균_승하차"].div(
         weekday_average.where(weekday_average != 0)
     )
     daily_grouped = daily_grouped.reset_index()
@@ -256,6 +321,11 @@ def build_station_demand(start_date=START_DATE, end_date=END_DATE):
     )
     df_time_features["심야_귀가지수(유흥/회식)"] = df_time_features["22-23_승차"]
 
+    only_daily = sorted(set(daily_grouped["SUB_STA_NM"]) - set(df_time_features["SUB_STA_NM"]))
+    only_time = sorted(set(df_time_features["SUB_STA_NM"]) - set(daily_grouped["SUB_STA_NM"]))
+    if only_daily or only_time:
+        print(f"  일별에만 있는 역 {len(only_daily)}개 {only_daily}, 시간대에만 있는 역 {len(only_time)}개 {only_time} → 결과에서 빠짐")
+
     final_demand_df = pd.merge(
         daily_grouped,
         df_time_features[
@@ -272,12 +342,15 @@ def build_station_demand(start_date=START_DATE, end_date=END_DATE):
         how="inner",
     )
     return final_demand_df.sort_values(
-        by="상권_기초체력(총인원)", ascending=False
+        by="주간_일평균_승하차", ascending=False
     ).reset_index(drop=True)
 
 
 if __name__ == "__main__":
-    final_demand_df = build_station_demand()
+    parser = argparse.ArgumentParser(description="역별 지하철 수요 지표 (2024-09 ~ 2026-09)")
+    parser.add_argument("--cache", help="받은 원본(월별 일별 CSV·시간대 JSON)을 저장하고 다시 쓸 폴더")
+    args = parser.parse_args()
+    final_demand_df = build_station_demand(cache_dir=args.cache)
     output_path = Path(__file__).with_name("subway_demand_202409_202609.csv")
     final_demand_df.to_csv(output_path, index=False, encoding="utf-8-sig")
     print(final_demand_df.head(20).to_string(index=False))

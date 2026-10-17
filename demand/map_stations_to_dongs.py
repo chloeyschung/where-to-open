@@ -10,11 +10,19 @@ from shapely.geometry import Point, shape
 
 
 DATA_DIR = Path(__file__).resolve().parent
+ROOT = DATA_DIR.parent
 STATION_NAME_ALIASES = {
     "자양(뚝섬한강공원)": "뚝섬유원지",
     "당고개": "불암산",
     "평택지제": "지제",
     "한국항공대": "화전",
+}
+# 역사마스터에 같은 이름이 노선별로 다른 위치에 있는 역 → 그 노선의 좌표만 쓴다 (subway.py 의 LINE_SPECIFIC_NAMES 와 짝)
+STATION_ROUTES = {
+    "신촌": "2호선",
+    "신촌(경의중앙선)": "경의중앙선",
+    "양평": "5호선",
+    "양평(중앙선)": "중앙선",
 }
 OUTPUT_COLUMNS = [
     "SUB_STA_NM",
@@ -96,6 +104,8 @@ def map_station(name, by_name, by_normalized_name, dongs):
     matched_rows, matched_name, match_method = resolve_station(
         name, by_name, by_normalized_name
     )
+    if name in STATION_ROUTES:
+        matched_rows = [row for row in matched_rows if row.get("route") == STATION_ROUTES[name]]
     points = []
     routes = set()
     for row in matched_rows:
@@ -283,23 +293,19 @@ def enrich_demand(demand_path, mapping_rows, dong_area_path):
         dong = dongs_by_code.get(code) if code else None
         if code and dong is None:
             raise ValueError(f"dong_area.csv에 행정동 코드가 없습니다: {name}={code}")
-        if dong:
-            mapped_count += 1
-        row.update(
-            {
-                column: dong[column].strip() if dong else ""
-                for column in DONG_AREA_COLUMNS
-            }
-        )
+        if not dong:
+            continue  # 서울 밖 역은 최종 수요 파일에서 뺀다 (매핑 기록은 station_dong_mapping.csv 에 남음)
+        mapped_count += 1
+        row.update({column: dong[column].strip() for column in DONG_AREA_COLUMNS})
         row.pop("area_km2", None)
         enriched_rows.append(row)
 
     with demand_path.open("w", encoding="utf-8-sig", newline="") as destination:
-        writer = csv.DictWriter(destination, fieldnames=output_columns)
+        writer = csv.DictWriter(destination, fieldnames=output_columns, lineterminator="\n")
         writer.writeheader()
         writer.writerows(enriched_rows)
 
-    return mapped_count, len(enriched_rows) - mapped_count
+    return mapped_count, len(demand_rows) - mapped_count
 
 
 def main():
@@ -324,7 +330,7 @@ def main():
     parser.add_argument(
         "--dong-area",
         type=Path,
-        default=DATA_DIR / "data" / "dong_area.csv",
+        default=ROOT / "competition" / "dong_area.csv",  # 팀 공통 행정동 기준표
     )
     parser.add_argument(
         "--demand",
@@ -346,14 +352,14 @@ def main():
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("w", encoding="utf-8-sig", newline="") as destination:
-        writer = csv.DictWriter(destination, fieldnames=OUTPUT_COLUMNS)
+        writer = csv.DictWriter(destination, fieldnames=OUTPUT_COLUMNS, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 
     statuses = Counter(row["mapping_status"] for row in rows)
     print(f"매핑 결과: {args.output} ({len(rows)}개 역)")
     print(f"수동 매핑 적용: {applied}; 미결: {pending}")
-    print(f"수요 CSV 행정동 정보 추가: {enriched_count}; 미매핑: {unmapped_count}")
+    print(f"수요 CSV: 서울 역 {enriched_count}개 남김, 서울 밖·미매핑 {unmapped_count}개 뺌")
     for status, count in sorted(statuses.items()):
         print(f"{status}: {count}")
 
