@@ -1,1 +1,21 @@
 .DS_Store
+__pycache__/
+
+# 원본·중간 데이터 폴더 (자리 축 등). 단, 안정성 축 결과는 커밋 대상
+data/
+!stability/data/
+
+# stability 축 데이터 (용량이 커서 저장소 제외)
+stability/raw/
+stability/out/
+stability/out_*/
+stability/ref/
+
+# 인증키 등 비밀값 (예시 파일만 커밋)
+.env
+*.env
+!.env.example
+
+# 파이썬 가상환경
+.venv/
+venv/
