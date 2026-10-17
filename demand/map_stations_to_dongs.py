@@ -13,7 +13,6 @@ DATA_DIR = Path(__file__).resolve().parent
 ROOT = DATA_DIR.parent
 STATION_NAME_ALIASES = {
     "자양(뚝섬한강공원)": "뚝섬유원지",
-    "당고개": "불암산",
     "평택지제": "지제",
     "한국항공대": "화전",
 }
