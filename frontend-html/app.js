@@ -50,9 +50,10 @@ function basisLabel(value) {
   return ({ dong: '행정동 값', gu: '구 평균 대체', none: '기준 없음' })[value] || '';
 }
 
-function updatePickers() {
+async function updatePickers() {
   const count = Number($('#location-count').value);
   const host = $('#dong-pickers');
+  const pendingLoads = [];
   const previous = $$('.dong-picker', host).map((row) => ({
     gu: $('.gu-select', row).value,
     code: $('.dong-select', row).value,
@@ -72,8 +73,18 @@ function updatePickers() {
     guSelect.innerHTML = state.guList.map((gu) => `<option value="${escapeHtml(gu)}">${escapeHtml(gu)}</option>`).join('');
     if (previousValue.gu && state.guList.includes(previousValue.gu)) guSelect.value = previousValue.gu;
     guSelect.addEventListener('change', () => fillDongSelect(guSelect, dongSelect));
-    fillDongSelect(guSelect, dongSelect, previousValue.code);
+    pendingLoads.push(fillDongSelect(guSelect, dongSelect, previousValue.code));
   }
+
+  await Promise.all(pendingLoads);
+  const usedCodes = new Set();
+  $$('.dong-select', host).forEach((select) => {
+    if (usedCodes.has(select.value)) {
+      const alternative = [...select.options].find((option) => option.value && !usedCodes.has(option.value));
+      if (alternative) select.value = alternative.value;
+    }
+    if (select.value) usedCodes.add(select.value);
+  });
 }
 
 async function fillDongSelect(guSelect, dongSelect, preferredCode = '') {
@@ -226,6 +237,11 @@ $('#compare-form').addEventListener('submit', async (event) => {
   setBusy(button, true, '리포트 조회 중');
   try {
     const rows = $$('.dong-picker');
+    const selectedCodes = rows.map((row) => $('.dong-select', row).value);
+    if (new Set(selectedCodes).size !== selectedCodes.length) {
+      showNotice('같은 행정동을 두 번 선택할 수 없습니다. 후보지를 다르게 골라주세요.');
+      return;
+    }
     const params = new URLSearchParams({ category: $('#category-select').value });
     rows.forEach((row) => params.append('adm_cds', $('.dong-select', row).value));
     const response = await api(`/api/dongs/compare?${params.toString()}`);
