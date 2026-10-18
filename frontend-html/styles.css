@@ -149,6 +149,12 @@ select:hover, input:hover { border-color: #91aa9a; }
 .site-search-row { display: grid; grid-template-columns: minmax(130px, 1fr) 150px auto; gap: 8px; margin: 8px 0; }
 .site-search-row input { width: 100%; }
 .slim-empty { min-height: 190px; margin-top: 23px; }
+.address-results { max-width: 800px; margin-top: 14px; }
+.address-list { display: grid; gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }
+.address-item { display: grid; gap: 3px; width: 100%; padding: 11px 14px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.address-item:hover, .address-item.is-active { border-color: var(--green); }
+.address-item strong { font-size: 13px; }
+.address-item span, .address-item small { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
 .site-card { margin-top: 22px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
 .site-card-top { padding: 20px 23px; display: flex; justify-content: space-between; gap: 15px; background: #f8faf8; border-bottom: 1px solid var(--line); }
 .site-card-top h2 { margin: 5px 0 2px; font-family: 'Noto Sans KR', sans-serif; font-size: 20px; }

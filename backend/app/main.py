@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import log_requests
-from app.routers import categories, data, dongs, health, reports, sites
+from app.routers import address, categories, data, dongs, health, reports, sites
 
 settings = get_settings()
 
@@ -39,4 +39,5 @@ app.include_router(categories.router)
 app.include_router(reports.router)
 app.include_router(dongs.router)
 app.include_router(sites.router)
+app.include_router(address.router)
 app.include_router(data.router)

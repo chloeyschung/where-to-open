@@ -255,20 +255,59 @@ $('#compare-form').addEventListener('submit', async (event) => {
   }
 });
 
+function renderAddressResults(response) {
+  const host = $('#address-results');
+  const items = response.items || [];
+  if (!items.length) {
+    host.innerHTML = `<p class="form-hint">서울에서 '${escapeHtml(response.query)}' 주소를 찾지 못했습니다. 동 이름과 번지를 함께 넣어 보세요.</p>`;
+    return;
+  }
+  const more = response.truncated ? ' · 결과가 많아 앞쪽만 보여 줍니다. 주소를 더 자세히 넣으면 좁혀집니다' : '';
+  host.innerHTML = `<p class="form-hint">주소 ${formatNumber(items.length)}건${more}</p>
+    <ul class="address-list">${items.map((item, index) => `
+      <li><button class="address-item" type="button" data-index="${index}">
+        <strong>${escapeHtml(item.jibun_addr)}</strong>
+        <span>${escapeHtml(item.road_addr)}</span>
+        <small>${escapeHtml(item.dong ? `${item.gu} ${item.dong}` : '행정동 미상')} · ${item.site_id ? `최근 10년 가게 ${formatNumber(item.permits_10y)}곳` : '최근 10년 가게 기록 없음'}</small>
+      </button></li>`).join('')}</ul>`;
+  $$('.address-item', host).forEach((button) => button.addEventListener('click', () => {
+    $$('.address-item', host).forEach((other) => other.classList.toggle('is-active', other === button));
+    showAddress(items[Number(button.dataset.index)]);
+  }));
+}
+
+async function showAddress(item) {
+  if (!item.site_id) {
+    $('#site-result').innerHTML = `<div class="empty-state slim-empty"><p class="eyebrow">${escapeHtml(item.dong ? `${item.gu} · ${item.dong}` : item.gu)}</p><h2>${escapeHtml(item.jibun_addr)}</h2><p>이 지번에는 최근 10년 일반음식점·휴게음식점·제과점 인허가 기록이 없습니다.</p></div>`;
+    return;
+  }
+  $('#site-result').innerHTML = '<div class="loading-state">자리 이력을 불러오는 중...</div>';
+  try {
+    renderSite(await api(`/api/sites/${encodeURIComponent(item.site_id)}?category=${encodeURIComponent($('#site-category').value)}`));
+  } catch (error) {
+    $('#site-result').innerHTML = `<div class="notice">${escapeHtml(error.message)}</div>`;
+  }
+}
+
 $('#site-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const button = $('button[type="submit"]', form);
   $('#global-notice').hidden = true;
-  setBusy(button, true, '자리 이력 조회 중');
+  setBusy(button, true, '검색 중');
   try {
-    const siteId = $('#site-id').value;
-    const category = $('#site-category').value;
-    renderSite(await api(`/api/sites/${encodeURIComponent(siteId)}?category=${encodeURIComponent(category)}`));
+    const response = await api(`/api/address/search?${new URLSearchParams({ q: $('#site-address').value.trim() })}`);
+    renderAddressResults(response);
+    $('#site-result').innerHTML = '';
+    if ((response.items || []).length === 1) {
+      $('.address-item').classList.add('is-active');
+      showAddress(response.items[0]);
+    }
   } catch (error) {
-    $('#site-result').innerHTML = `<div class="notice">${escapeHtml(error.message)}. 유효한 자리 ID인지 확인하세요.</div>`;
+    $('#site-result').innerHTML = '';
+    $('#address-results').innerHTML = `<div class="notice">${escapeHtml(error.message)}</div>`;
   } finally {
-    setBusy(button, false, '자리 이력 조회');
+    setBusy(button, false, '주소 검색');
   }
 });
 
