@@ -11,8 +11,9 @@ from app.core.database import Base, SessionLocal, engine
 from app.models import Site, SiteStore
 
 REPO_DIR = Path(__file__).resolve().parent.parent
-SITES_CSV = REPO_DIR / "jari" / "sites.csv"
-HISTORY_CSV = REPO_DIR / "jari" / "site_history.csv"
+# 자리 축 결과(jari/sites.py). 용량이 커서 git에 올리지 않고 드라이브에서 받아 data/seoul/ 에 둔다
+SITES_CSV = REPO_DIR / "data" / "seoul" / "sites.csv"
+HISTORY_CSV = REPO_DIR / "data" / "seoul" / "site_history.csv"
 BATCH_SIZE = 5_000
 
 

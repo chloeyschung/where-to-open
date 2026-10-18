@@ -38,7 +38,7 @@ flowchart LR
         STAB["stability/data/<br/>stability_by_dong.csv<br/>stability_by_gu.csv<br/>stability_seoul.csv"]
         DEMAND["demand/<br/>subway_demand_202409_202609.csv<br/>역별 하루 평균 집계"]
         JARI["jari/<br/>dong_fill.csv<br/>주소 → 행정동 보충"]
-        SITE["jari/<br/>sites.csv · site_history.csv<br/>자리·업소 10년 이력"]
+        SITE["data/seoul/ (드라이브, git 제외)<br/>sites.csv · site_history.csv<br/>자리·업소 10년 이력"]
         MISSING["로컬에 없음<br/>permits_base.csv<br/>yearly_by_dong.csv"]
     end
 
@@ -64,7 +64,7 @@ flowchart LR
 
 ## 현재 제약
 
-- `jari/sites.csv`와 `jari/site_history.csv`를 `backend/load_sites.py`로 적재했습니다. 자리 109,943건, 업소 이력 576,785건이며 `GET /api/sites/{site_id}`에서 조회할 수 있습니다. 주소 검색·자리 목록 API는 아직 없습니다.
+- `data/seoul/sites.csv`와 `data/seoul/site_history.csv`(드라이브에서 받기, git 제외)를 `backend/load_sites.py`로 적재했습니다. 자리 109,943건, 업소 이력 576,785건이며 `GET /api/sites/{site_id}`에서 조회할 수 있습니다. 주소 검색·자리 목록 API는 아직 없습니다.
 - `store` 테이블에 들어갈 공용 `permits_base.csv`는 공유 드라이브에만 있어 로컬에 없습니다.
 - `yearly_stat` 산출물과 행정동×시간대 수요 파일은 현재 없습니다. 수요는 역별 집계의 오전·저녁·밤 지표를 씁니다.
 - 수집 파이프라인 API는 단계 설명만 반환합니다. 배치 실행 이력이나 실제 작업 상태를 추적하는 기능은 아직 없습니다.
