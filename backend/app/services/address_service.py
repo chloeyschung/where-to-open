@@ -6,7 +6,6 @@
 import json
 import logging
 import re
-import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -26,8 +25,9 @@ PAGE_SIZE = 20  # 화면에 보여 줄 후보 수. 더 좁히려면 사용자가
 # jari/common.py 와 같은 정규식. "서울특별시 마포구 망원동 329-1 2층" → ("마포구", "망원동", None, "329-1")
 JIBUN_PAT = re.compile(r"^서울특별시 (\S+구) (\S+) (산\s*)?(\d+(?:-\d+)?)(?:\s|,|\(|$)")
 
-# 도로명주소 API 오류 코드 중 사용자가 검색어를 고치면 되는 것 (나머지는 서버·키 문제)
-USER_ERRORS = {"E0005", "E0006", "E0008", "E0009", "E0011", "E0012", "E0013", "E0015"}
+# 도로명주소 API 오류 중 서버 쪽 문제 (실제 응답으로 확인: E0001 승인되지 않은 키, -999 일시적 시스템 오류).
+# 그 밖의 오류(E0006 "주소를 상세히 입력", E0008 "두글자 이상" 등)는 API가 준 안내 문구를 그대로 사용자에게 보여 준다
+SERVER_ERRORS = {"E0001", "-999"}
 
 
 def jibun_key(addr: str) -> str | None:
@@ -110,14 +110,14 @@ class AddressService:
             with urllib.request.urlopen(url, timeout=10) as res:
                 data = json.load(res)
             common = data["results"]["common"]
-        except (urllib.error.URLError, TimeoutError, ValueError, KeyError) as exc:
+        except (OSError, ValueError, KeyError) as exc:  # OSError: 연결·HTTP 오류·시간 초과 모두
             logger.warning("도로명주소 API 호출 실패: %s", exc)  # url에 키가 있어 남기지 않는다
             raise ExternalApiError("주소 검색 서비스에 연결하지 못했습니다. 잠시 뒤 다시 시도하세요.") from exc
 
         code = common.get("errorCode")
         if code != "0":
             logger.warning("도로명주소 API 오류 %s: %s", code, common.get("errorMessage"))
-            if code in USER_ERRORS:
-                raise AppError(common.get("errorMessage") or "검색어를 확인하세요.")
-            raise ExternalApiError("주소 검색 서비스가 오류를 돌려줬습니다. 잠시 뒤 다시 시도하세요.")
+            if code in SERVER_ERRORS:
+                raise ExternalApiError("주소 검색 서비스가 오류를 돌려줬습니다. 잠시 뒤 다시 시도하세요.")
+            raise AppError(common.get("errorMessage") or "검색어를 확인하세요.")
         return int(common.get("totalCount") or 0), data["results"].get("juso") or []

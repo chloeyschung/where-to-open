@@ -28,9 +28,9 @@ flowchart LR
     DB -.-> EMPTY["데이터 미적재<br/>공용 permits_base.csv<br/>연도별 안정성·시간대별 동 수요"]
 ```
 
-프론트엔드는 FastAPI만 호출합니다. Supabase 접속 문자열과 도로명주소 API 키(`JUSO_API_KEY`)는 backend 환경변수로만 관리하며 브라우저에 전달하지 않습니다.
+프론트엔드는 FastAPI만 호출합니다. Supabase 접속 문자열과 도로명주소 API 키(`JUSO_API_KEY`)는 backend 환경변수로만 관리하며 브라우저에 전달하지 않습니다. 로컬 origin은 Render CORS에 허용됐습니다. 정적 사이트 배포 후에는 해당 사이트 origin도 backend의 `CORS_ORIGINS`에 추가해야 합니다.
 
-외부 API를 요청 때마다 부르는 곳은 주소 검색(`GET /api/address/search`) 하나입니다. 입력한 주소를 도로명주소 API로 찾아 지번을 자리 키(`구 동 번지`, `jari/common.py`의 `jibun_key`와 같은 규칙)로 바꾸고 `site`와 `dong`에서 자리·행정동을 찾습니다. 나머지 API는 기준일(2026-09-30)로 미리 계산해 적재한 값만 읽습니다. 로컬 origin은 Render CORS에 허용됐습니다. 정적 사이트 배포 후에는 해당 사이트 origin도 backend의 `CORS_ORIGINS`에 추가해야 합니다.
+외부 API를 요청 때마다 부르는 곳은 주소 검색(`GET /api/address/search`) 하나입니다. 입력한 주소를 도로명주소 API로 찾아 지번을 자리 키(`구 동 번지`, `jari/common.py`의 `jibun_key`와 같은 규칙)로 바꾸고 `site`와 `dong`에서 자리·행정동을 찾습니다. 나머지 API는 기준일(2026-09-30)로 미리 계산해 적재한 값만 읽습니다.
 
 ## 데이터 수집·정규화·적재 흐름
 

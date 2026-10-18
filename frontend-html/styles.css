@@ -155,6 +155,8 @@ select:hover, input:hover { border-color: #91aa9a; }
 .address-item:hover, .address-item.is-active { border-color: var(--green); }
 .address-item strong { font-size: 13px; }
 .address-item span, .address-item small { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.site-metric .metric-sub { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; font-weight: 500; }
+.site-dong-line { margin-top: 6px; }
 .site-card { margin-top: 22px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
 .site-card-top { padding: 20px 23px; display: flex; justify-content: space-between; gap: 15px; background: #f8faf8; border-bottom: 1px solid var(--line); }
 .site-card-top h2 { margin: 5px 0 2px; font-family: 'Noto Sans KR', sans-serif; font-size: 20px; }

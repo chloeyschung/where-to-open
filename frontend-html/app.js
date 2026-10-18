@@ -161,14 +161,16 @@ function renderComparison(items) {
   $('#results-heading').hidden = false;
 }
 
-function renderSite(site) {
+function renderSite(site, dongName = '') {
   const history = site.history || [];
+  const comp = site.dong_competition;
+  const dongLine = comp ? `<p class="form-hint site-dong-line">${escapeHtml(dongName || '이 행정동')} ${escapeHtml(site.category?.name || '')} 밀도 ${formatNumber(comp.density_per_km2, 1)}개/km² · 서울 ${formatNumber(comp.seoul_rank)} / ${formatNumber(comp.seoul_dong_count)}위 · 서울 평균 ${formatNumber(comp.seoul_avg_density, 1)}개/km²</p>` : '';
   $('#site-result').innerHTML = `
     <article class="site-card">
-      <header class="site-card-top"><div><p class="eyebrow">${escapeHtml(site.gu)} · ${escapeHtml(site.adm_cd || '행정동 미상')}</p><h2>${escapeHtml(site.site_key)}</h2><p>지번 기준 · 층·호 구분 없음</p></div><span class="site-id-badge">SITE ${formatNumber(site.id)}</span></header>
+      <header class="site-card-top"><div><p class="eyebrow">${escapeHtml(site.gu)} · ${escapeHtml(dongName || site.adm_cd || '행정동 미상')}</p><h2>${escapeHtml(site.site_key)}</h2><p>지번 기준 · 층·호 구분 없음</p>${dongLine}</div><span class="site-id-badge">SITE ${formatNumber(site.id)}</span></header>
       <div class="site-metrics">
-        <div class="site-metric"><span class="site-metric-label">10년 인허가</span><strong>${formatNumber(site.permits_10y)}건</strong></div>
-        <div class="site-metric"><span class="site-metric-label">한 칸당 교체</span><strong>${formatNumber(site.per_slot_10y, 2)}회</strong></div>
+        <div class="site-metric"><span class="site-metric-label">10년 인허가</span><strong>${formatNumber(site.permits_10y)}건</strong>${site.max_concurrent === 1 && site.dong_avg_single != null ? `<small class="metric-sub">동 평균 ${formatNumber(site.dong_avg_single, 2)}건 (가게 한 곳짜리 자리)</small>` : ''}</div>
+        <div class="site-metric"><span class="site-metric-label">한 칸당 교체</span><strong>${formatNumber(site.per_slot_10y, 2)}회</strong>${site.max_concurrent > 1 && site.dong_avg_per_slot != null ? `<small class="metric-sub">동 평균 ${formatNumber(site.dong_avg_per_slot, 2)}회</small>` : ''}</div>
         <div class="site-metric"><span class="site-metric-label">현재 영업</span><strong>${formatNumber(site.open_now)}곳</strong></div>
         <div class="site-metric"><span class="site-metric-label">폐업 업소 평균 영업</span><strong>${site.avg_months_closed == null ? '자료 없음' : `${formatNumber(site.avg_months_closed, 1)}개월`}</strong></div>
       </div>
@@ -277,17 +279,22 @@ function renderAddressResults(response) {
 }
 
 async function showAddress(item) {
+  state.lastAddress = item;
   if (!item.site_id) {
     $('#site-result').innerHTML = `<div class="empty-state slim-empty"><p class="eyebrow">${escapeHtml(item.dong ? `${item.gu} · ${item.dong}` : item.gu)}</p><h2>${escapeHtml(item.jibun_addr)}</h2><p>이 지번에는 최근 10년 일반음식점·휴게음식점·제과점 인허가 기록이 없습니다.</p></div>`;
     return;
   }
   $('#site-result').innerHTML = '<div class="loading-state">자리 이력을 불러오는 중...</div>';
   try {
-    renderSite(await api(`/api/sites/${encodeURIComponent(item.site_id)}?category=${encodeURIComponent($('#site-category').value)}`));
+    renderSite(await api(`/api/sites/${encodeURIComponent(item.site_id)}?category=${encodeURIComponent($('#site-category').value)}`), item.dong || '');
   } catch (error) {
     $('#site-result').innerHTML = `<div class="notice">${escapeHtml(error.message)}</div>`;
   }
 }
+
+$('#site-category').addEventListener('change', () => {
+  if (state.lastAddress?.site_id) showAddress(state.lastAddress);
+});
 
 $('#site-form').addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -298,6 +305,7 @@ $('#site-form').addEventListener('submit', async (event) => {
   try {
     const response = await api(`/api/address/search?${new URLSearchParams({ q: $('#site-address').value.trim() })}`);
     renderAddressResults(response);
+    state.lastAddress = null;
     $('#site-result').innerHTML = '';
     if ((response.items || []).length === 1) {
       $('.address-item').classList.add('is-active');

@@ -9,7 +9,7 @@ class AddressMatch(BaseModel):
     site_id: int | None = Field(description="자리 id. 최근 10년 가게 기록이 없는 주소면 null → /api/sites/{site_id}")
     permits_10y: int | None = Field(description="그 자리의 최근 10년 새로 들어온 가게 수. 자리가 없으면 null")
     gu: str = Field(examples=["중구"])
-    adm_cd: str | None = Field(description="행정동 코드 10자리. 못 찾으면 null", examples=["1114016500"])
+    adm_cd: str | None = Field(description="행정동 코드 10자리. 못 찾으면 null", examples=["1114067000"])
     dong: str | None = Field(description="행정동 이름", examples=["황학동"])
     dong_basis: str | None = Field(
         description="행정동을 정한 근거. site = 자리 데이터(가게 좌표 기준, 다른 축과 같은 값), "
