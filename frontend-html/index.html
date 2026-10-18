@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#eef2ef" />
+    <meta name="description" content="점수로 줄 세우지 않고 창업 후보 동네를 비교하는 입지 리포트" />
+    <title>어디에 열까 | 입지 리포트</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./app.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="#compare" aria-label="어디에 열까 홈">
+          <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+          <span class="brand-name">어디에<br />열까</span>
+        </a>
+
+        <div class="side-caption">LOCATION BRIEF</div>
+        <nav class="primary-nav" aria-label="주요 화면">
+          <button class="nav-item is-active" type="button" data-view="compare">
+            <span class="nav-index">01</span><span>동네 비교</span>
+          </button>
+          <button class="nav-item" type="button" data-view="site">
+            <span class="nav-index">02</span><span>자리 상세</span>
+          </button>
+          <button class="nav-item" type="button" data-view="data">
+            <span class="nav-index">03</span><span>데이터와 기준</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-bottom">
+          <div class="sidebar-note">
+            <span class="note-rule"></span>
+            <p>좋은 자리는<br />사람마다 다르니까.</p>
+            <small>점수 하나로 정렬하지 않습니다.</small>
+          </div>
+          <a class="docs-link" href="https://where-to-open.onrender.com/docs" target="_blank" rel="noreferrer">
+            API 문서 <span aria-hidden="true">↗</span>
+          </a>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <div class="breadcrumbs"><span>SEOUL</span><span class="crumb-slash">/</span><span id="current-crumb">동네 비교</span></div>
+          <div class="connection-state" id="connection-state" role="status">
+            <span class="state-dot"></span><span id="connection-label">API 연결 확인 중</span>
+          </div>
+        </header>
+
+        <section class="page-view is-active" id="view-compare" aria-labelledby="compare-title">
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">CANDIDATE REVIEW <span>·</span> 서울 427개 행정동</p>
+              <h1 id="compare-title">동네를 나란히<br /><em>놓고 살펴보세요.</em></h1>
+              <p class="lede">경쟁, 안정성, 자리 이력, 수요를 따로 비교합니다.<br />한 숫자로 후보지를 줄 세우지 않습니다.</p>
+            </div>
+            <div class="heading-stamp"><span>기준일</span><strong id="base-date-heading">2026.09.30</strong><small>업종별 · 행정동 기준</small></div>
+          </div>
+
+          <form class="compare-controls" id="compare-form">
+            <div class="controls-topline">
+              <div class="control-title"><span class="control-kicker">01 / COMPARE</span><h2>비교할 후보지</h2></div>
+              <div class="form-field category-field">
+                <label for="category-select">업종</label>
+                <select id="category-select" name="category" required>
+                  <option value="cafe">카페</option>
+                  <option value="bakery">제과점</option>
+                  <option value="korean">한식</option>
+                </select>
+              </div>
+              <div class="form-field count-field">
+                <label for="location-count">후보지 수</label>
+                <select id="location-count" name="location_count">
+                  <option value="2">2곳</option><option value="3">3곳</option><option value="4">4곳</option>
+                </select>
+              </div>
+            </div>
+            <div class="dong-pickers" id="dong-pickers"></div>
+            <div class="controls-bottomline">
+              <p class="form-hint">행정동 2~4곳 · 같은 업종 기준으로 비교</p>
+              <button class="button button-primary" type="submit">
+                <span>비교 리포트 보기</span><span class="button-arrow" aria-hidden="true">→</span>
+              </button>
+            </div>
+          </form>
+
+          <div class="notice" id="global-notice" hidden role="alert"></div>
+          <div class="results-heading" id="results-heading" hidden>
+            <div><p class="eyebrow">SIDE BY SIDE</p><h2>후보지 비교</h2></div>
+            <span class="no-score-note">종합 점수 없음</span>
+          </div>
+          <div id="compare-results" class="compare-results" aria-live="polite">
+            <div class="empty-state">
+              <div class="empty-mark" aria-hidden="true">↗</div>
+              <p class="eyebrow">START WITH A SHORTLIST</p>
+              <h2>후보지 서너 곳부터<br />같은 기준으로 놓아보세요.</h2>
+              <p>동네를 선택하면 공개데이터 기준 리포트를 불러옵니다.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="page-view" id="view-site" aria-labelledby="site-title" hidden>
+          <div class="page-heading compact-heading">
+            <div>
+              <p class="eyebrow">ADDRESS HISTORY <span>·</span> 최근 10년</p>
+              <h1 id="site-title">자리의 시간을<br /><em>되짚어봅니다.</em></h1>
+              <p class="lede">주소 단위로 쌓인 인허가 이력과 교체 지표를 확인합니다.<br />층·호가 아닌 같은 지번 기준입니다.</p>
+            </div>
+            <div class="heading-stamp"><span>자리 데이터</span><strong>109,943곳</strong><small>10년 이력 적재</small></div>
+          </div>
+          <form class="site-search" id="site-form">
+            <label for="site-id">자리 ID</label>
+            <div class="site-search-row">
+              <input id="site-id" name="site_id" type="number" min="1" placeholder="예: 109944" required />
+              <select id="site-category" name="category" aria-label="업종">
+                <option value="cafe">카페</option><option value="bakery">제과점</option><option value="korean">한식</option>
+              </select>
+              <button class="button button-primary" type="submit"><span>자리 이력 조회</span><span aria-hidden="true">→</span></button>
+            </div>
+            <p class="form-hint">현재 주소 검색은 없으며, API의 숫자형 자리 ID로 조회합니다.</p>
+          </form>
+          <div id="site-result" class="site-result" aria-live="polite">
+            <div class="empty-state slim-empty"><p class="eyebrow">SITE HISTORY</p><h2>자리 ID를 입력해 이력을 불러오세요.</h2></div>
+          </div>
+        </section>
+
+        <section class="page-view" id="view-data" aria-labelledby="data-title" hidden>
+          <div class="page-heading compact-heading">
+            <div>
+              <p class="eyebrow">SOURCES &amp; METHOD</p>
+              <h1 id="data-title">숫자 뒤에 있는<br /><em>기준을 공개합니다.</em></h1>
+              <p class="lede">어떤 자료를 언제 기준으로 보았는지, 지표를 어떻게 계산했는지 확인하세요.</p>
+            </div>
+            <div class="heading-stamp"><span>비교 원칙</span><strong>점수화 안 함</strong><small>축별 지표를 나란히 표시</small></div>
+          </div>
+          <div id="data-result" class="data-result" aria-live="polite">
+            <div class="loading-state">데이터 기준을 불러오는 중...</div>
+          </div>
+          <div class="pipeline-section">
+            <div class="section-heading"><div><p class="eyebrow">PIPELINE</p><h2>수집과 정규화</h2></div><span class="no-score-note">실행 이력 미추적</span></div>
+            <div id="pipeline-result" class="pipeline-list"></div>
+          </div>
+        </section>
+
+        <footer class="page-footer">
+          <span>어디에 열까 · 공공데이터로 보는 창업 입지</span>
+          <span>결정은 창업자의 몫, 비교 기준은 투명하게</span>
+        </footer>
+      </main>
+    </div>
+  </body>
+</html>
