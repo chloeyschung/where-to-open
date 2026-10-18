@@ -1,0 +1,7 @@
+fastapi>=0.118
+uvicorn[standard]>=0.37
+sqlalchemy>=2.0.43
+psycopg[binary]>=3.2.10
+pydantic>=2.12
+pydantic-settings>=2.11
+pandas>=2.3
