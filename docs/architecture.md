@@ -1,13 +1,22 @@
 # 서비스 아키텍처
 
-현재 구성 기준: 2026-10-18. Vanilla HTML/CSS/JavaScript 화면(`frontend-html`), Render의 FastAPI backend, Supabase 스키마와 CSV 적재가 구성되어 있습니다. Render Static Site 배포는 아직 완료되지 않았습니다. 점선 흐름은 아직 구현·배포되지 않은 연결 또는 데이터입니다.
+현재 구성 기준: 2026-10-20. HTML/CSS/JavaScript 화면(`frontend-html`, Vercel), FastAPI 백엔드(Render), Supabase PostgreSQL로 구성합니다. 점선 흐름은 아직 구현·배포되지 않은 연결 또는 데이터입니다.
+
+| 구성 | 플랫폼 | 주소 |
+|---|---|---|
+| 화면 | Vercel (`frontend-html` 폴더) | 배포 후 채움 |
+| API | Render Web Service (Docker, `backend/Dockerfile`) | https://where-to-open-cilr.onrender.com |
+| API 문서 (Swagger UI) | Render | https://where-to-open-cilr.onrender.com/docs |
+| DB | Supabase PostgreSQL (서울 리전) | 접속 정보는 Render 환경변수 `DATABASE_URL` |
+
+`main` 브랜치에 머지하면 Render가 API를 다시 배포합니다.
 
 ## 서비스 요청 흐름
 
 ```mermaid
 flowchart LR
     USER["창업 후보자<br/>동네 2~4곳 비교"]
-    FRONT["HTML · CSS · JavaScript<br/>frontend-html<br/>Render Static Site 예정"]
+    FRONT["HTML · CSS · JavaScript<br/>frontend-html<br/>Vercel"]
     API["FastAPI<br/>Render Web Service"]
     ROUTER["Routers<br/>요청 검증·경로 분기"]
     SERVICE["Services<br/>리포트·비교 응답 구성"]
@@ -28,7 +37,7 @@ flowchart LR
     DB -.-> EMPTY["데이터 미적재<br/>공용 permits_base.csv<br/>연도별 안정성·시간대별 동 수요"]
 ```
 
-프론트엔드는 FastAPI만 호출합니다. Supabase 접속 문자열과 도로명주소 API 키(`JUSO_API_KEY`)는 backend 환경변수로만 관리하며 브라우저에 전달하지 않습니다. 로컬 origin은 Render CORS에 허용됐습니다. 정적 사이트 배포 후에는 해당 사이트 origin도 backend의 `CORS_ORIGINS`에 추가해야 합니다.
+프론트엔드는 FastAPI만 호출합니다. Supabase 접속 문자열과 도로명주소 API 키(`JUSO_API_KEY`)는 backend 환경변수로만 관리하며 브라우저에 전달하지 않습니다. 화면이 다른 주소(Vercel)에서 API를 부르므로, 화면 주소를 API의 환경변수 `CORS_ORIGINS`에 넣어야 브라우저가 응답을 읽습니다.
 
 외부 API를 요청 때마다 부르는 곳은 주소 검색(`GET /api/address/search`) 하나입니다. 입력한 주소를 도로명주소 API로 찾아 지번을 자리 키(`구 동 번지`, `jari/common.py`의 `jibun_key`와 같은 규칙)로 바꾸고 `site`와 `dong`에서 자리·행정동을 찾습니다. 나머지 API는 기준일(2026-09-30)로 미리 계산해 적재한 값만 읽습니다.
 

@@ -1,4 +1,4 @@
-const API_BASE = (window.WHERE_TO_OPEN_API_BASE_URL || 'https://where-to-open.onrender.com').replace(/\/$/, '');
+const API_BASE = (window.WHERE_TO_OPEN_API_BASE_URL || 'https://where-to-open-cilr.onrender.com').replace(/\/$/, '');
 const state = { guList: [], dongCache: new Map(), categories: [], activeView: 'compare' };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -28,7 +28,7 @@ function setConnection(online, label) {
 function showNotice(message, action = '') {
   const notice = $('#global-notice');
   notice.hidden = false;
-  notice.innerHTML = `${escapeHtml(message)}${action ? ` <a href="https://where-to-open.onrender.com/docs" target="_blank" rel="noreferrer">API 문서 확인 ↗</a>` : ''}`;
+  notice.innerHTML = `${escapeHtml(message)}${action ? ` <a href="${API_BASE}/docs" target="_blank" rel="noreferrer">API 문서 확인 ↗</a>` : ''}`;
 }
 
 function setBusy(button, busy, label) {
