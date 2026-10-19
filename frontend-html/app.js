@@ -1,4 +1,4 @@
-const API_BASE = (window.WHERE_TO_OPEN_API_BASE_URL || 'https://where-to-open.onrender.com').replace(/\/$/, '');
+const API_BASE = (window.WHERE_TO_OPEN_API_BASE_URL || 'https://where-to-open-cilr.onrender.com').replace(/\/$/, '');
 const state = { guList: [], dongCache: new Map(), categories: [], activeView: 'compare' };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -28,7 +28,7 @@ function setConnection(online, label) {
 function showNotice(message, action = '') {
   const notice = $('#global-notice');
   notice.hidden = false;
-  notice.innerHTML = `${escapeHtml(message)}${action ? ` <a href="https://where-to-open.onrender.com/docs" target="_blank" rel="noreferrer">API 문서 확인 ↗</a>` : ''}`;
+  notice.innerHTML = `${escapeHtml(message)}${action ? ` <a href="${API_BASE}/docs" target="_blank" rel="noreferrer">API 문서 확인 ↗</a>` : ''}`;
 }
 
 function setBusy(button, busy, label) {
@@ -161,14 +161,16 @@ function renderComparison(items) {
   $('#results-heading').hidden = false;
 }
 
-function renderSite(site) {
+function renderSite(site, dongName = '') {
   const history = site.history || [];
+  const comp = site.dong_competition;
+  const dongLine = comp ? `<p class="form-hint site-dong-line">${escapeHtml(dongName || '이 행정동')} ${escapeHtml(site.category?.name || '')} 밀도 ${formatNumber(comp.density_per_km2, 1)}개/km² · 서울 ${formatNumber(comp.seoul_rank)} / ${formatNumber(comp.seoul_dong_count)}위 · 서울 평균 ${formatNumber(comp.seoul_avg_density, 1)}개/km²</p>` : '';
   $('#site-result').innerHTML = `
     <article class="site-card">
-      <header class="site-card-top"><div><p class="eyebrow">${escapeHtml(site.gu)} · ${escapeHtml(site.adm_cd || '행정동 미상')}</p><h2>${escapeHtml(site.site_key)}</h2><p>지번 기준 · 층·호 구분 없음</p></div><span class="site-id-badge">SITE ${formatNumber(site.id)}</span></header>
+      <header class="site-card-top"><div><p class="eyebrow">${escapeHtml(site.gu)} · ${escapeHtml(dongName || site.adm_cd || '행정동 미상')}</p><h2>${escapeHtml(site.site_key)}</h2><p>지번 기준 · 층·호 구분 없음</p>${dongLine}</div><span class="site-id-badge">SITE ${formatNumber(site.id)}</span></header>
       <div class="site-metrics">
-        <div class="site-metric"><span class="site-metric-label">10년 인허가</span><strong>${formatNumber(site.permits_10y)}건</strong></div>
-        <div class="site-metric"><span class="site-metric-label">한 칸당 교체</span><strong>${formatNumber(site.per_slot_10y, 2)}회</strong></div>
+        <div class="site-metric"><span class="site-metric-label">10년 인허가</span><strong>${formatNumber(site.permits_10y)}건</strong>${site.max_concurrent === 1 && site.dong_avg_single != null ? `<small class="metric-sub">동 평균 ${formatNumber(site.dong_avg_single, 2)}건 (가게 한 곳짜리 자리)</small>` : ''}</div>
+        <div class="site-metric"><span class="site-metric-label">한 칸당 교체</span><strong>${formatNumber(site.per_slot_10y, 2)}회</strong>${site.max_concurrent > 1 && site.dong_avg_per_slot != null ? `<small class="metric-sub">동 평균 ${formatNumber(site.dong_avg_per_slot, 2)}회</small>` : ''}</div>
         <div class="site-metric"><span class="site-metric-label">현재 영업</span><strong>${formatNumber(site.open_now)}곳</strong></div>
         <div class="site-metric"><span class="site-metric-label">폐업 업소 평균 영업</span><strong>${site.avg_months_closed == null ? '자료 없음' : `${formatNumber(site.avg_months_closed, 1)}개월`}</strong></div>
       </div>
@@ -255,20 +257,65 @@ $('#compare-form').addEventListener('submit', async (event) => {
   }
 });
 
+function renderAddressResults(response) {
+  const host = $('#address-results');
+  const items = response.items || [];
+  if (!items.length) {
+    host.innerHTML = `<p class="form-hint">서울에서 '${escapeHtml(response.query)}' 주소를 찾지 못했습니다. 동 이름과 번지를 함께 넣어 보세요.</p>`;
+    return;
+  }
+  const more = response.truncated ? ' · 결과가 많아 앞쪽만 보여 줍니다. 주소를 더 자세히 넣으면 좁혀집니다' : '';
+  host.innerHTML = `<p class="form-hint">주소 ${formatNumber(items.length)}건${more}</p>
+    <ul class="address-list">${items.map((item, index) => `
+      <li><button class="address-item" type="button" data-index="${index}">
+        <strong>${escapeHtml(item.jibun_addr)}</strong>
+        <span>${escapeHtml(item.road_addr)}</span>
+        <small>${escapeHtml(item.dong ? `${item.gu} ${item.dong}` : '행정동 미상')} · ${item.site_id ? `최근 10년 가게 ${formatNumber(item.permits_10y)}곳` : '최근 10년 가게 기록 없음'}</small>
+      </button></li>`).join('')}</ul>`;
+  $$('.address-item', host).forEach((button) => button.addEventListener('click', () => {
+    $$('.address-item', host).forEach((other) => other.classList.toggle('is-active', other === button));
+    showAddress(items[Number(button.dataset.index)]);
+  }));
+}
+
+async function showAddress(item) {
+  state.lastAddress = item;
+  if (!item.site_id) {
+    $('#site-result').innerHTML = `<div class="empty-state slim-empty"><p class="eyebrow">${escapeHtml(item.dong ? `${item.gu} · ${item.dong}` : item.gu)}</p><h2>${escapeHtml(item.jibun_addr)}</h2><p>이 지번에는 최근 10년 일반음식점·휴게음식점·제과점 인허가 기록이 없습니다.</p></div>`;
+    return;
+  }
+  $('#site-result').innerHTML = '<div class="loading-state">자리 이력을 불러오는 중...</div>';
+  try {
+    renderSite(await api(`/api/sites/${encodeURIComponent(item.site_id)}?category=${encodeURIComponent($('#site-category').value)}`), item.dong || '');
+  } catch (error) {
+    $('#site-result').innerHTML = `<div class="notice">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+$('#site-category').addEventListener('change', () => {
+  if (state.lastAddress?.site_id) showAddress(state.lastAddress);
+});
+
 $('#site-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const button = $('button[type="submit"]', form);
   $('#global-notice').hidden = true;
-  setBusy(button, true, '자리 이력 조회 중');
+  setBusy(button, true, '검색 중');
   try {
-    const siteId = $('#site-id').value;
-    const category = $('#site-category').value;
-    renderSite(await api(`/api/sites/${encodeURIComponent(siteId)}?category=${encodeURIComponent(category)}`));
+    const response = await api(`/api/address/search?${new URLSearchParams({ q: $('#site-address').value.trim() })}`);
+    renderAddressResults(response);
+    state.lastAddress = null;
+    $('#site-result').innerHTML = '';
+    if ((response.items || []).length === 1) {
+      $('.address-item').classList.add('is-active');
+      showAddress(response.items[0]);
+    }
   } catch (error) {
-    $('#site-result').innerHTML = `<div class="notice">${escapeHtml(error.message)}. 유효한 자리 ID인지 확인하세요.</div>`;
+    $('#site-result').innerHTML = '';
+    $('#address-results').innerHTML = `<div class="notice">${escapeHtml(error.message)}</div>`;
   } finally {
-    setBusy(button, false, '자리 이력 조회');
+    setBusy(button, false, '주소 검색');
   }
 });
 

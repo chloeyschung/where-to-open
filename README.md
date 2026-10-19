@@ -199,12 +199,14 @@ competition/  경쟁 축: 인허가 정제, 공용 파일(permits_base.csv) 생�
 stability/    안정성 축: 교체율·신규율·3년 생존율, 팝업 판정(temp_rule.py)
 jari/         자리 축: 자리 지표, 주소로 행정동 채우기
 demand/       수요 축: 지하철 역별 승하차, 역 → 행정동
-docs/         팀 공통 데이터 규칙
+backend/      API 서버 (FastAPI), DB 적재 스크립트 (load_data.py, load_sites.py)
+frontend-html/ 서비스 화면 (HTML·CSS·JS)
+docs/         팀 공통 데이터 규칙, 서비스 아키텍처
 ```
 
 원본·중간 데이터(`data/`)와 인증키(`.env`)는 저장소에 올리지 않습니다.
 
-앞으로 서비스 코드가 들어오면 `frontend/`, `backend/` 를 추가합니다.
+배포 구성과 주소는 `docs/architecture.md`에 있습니다.
 
 ### 페이지 고치기
 
@@ -226,8 +228,8 @@ docs/         팀 공통 데이터 규칙
 - [ ] 4절의 미확인 항목 검증 (지역 코드 체계는 확인됨)
 - [x] 범위 정하기 → 서울 전체 (2026-10-12)
 - [x] 인허가 데이터로 세 지표 계산 (경쟁 #8, 안정성 #9, 자리 #10 — 공통 규칙, 기준일 2026-09-30)
-- [ ] Supabase 프로젝트 생성, 스키마 반영
-- [ ] FastAPI 엔드포인트 설계
+- [x] Supabase 프로젝트 생성, 스키마 반영, 데이터 적재 (#12)
+- [x] FastAPI 엔드포인트 (#12, 주소 검색 #13)
 - [ ] 데이터 분석 페이지 (과제 필수 요건)
 - [ ] API 설명 문서, DB 테이블 문서
-- [ ] Vercel·Render 배포 후 주소 3개 확보
+- [ ] Vercel·Render 배포 후 주소 3개 확보 (API·Swagger는 Render에 배포됨, 화면 Vercel 남음)

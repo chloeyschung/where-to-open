@@ -44,3 +44,7 @@ class DongRepository:
     def list_gu(self) -> list[str]:
         #   SELECT DISTINCT dong.gu FROM dong ORDER BY dong.gu
         return list(self.db.scalars(select(Dong.gu).distinct().order_by(Dong.gu)))
+
+    def find_by_name(self, gu: str, name: str) -> Dong | None:
+        #   SELECT ... FROM dong WHERE dong.gu = '중구' AND dong.name = '황학동'
+        return self.db.scalars(select(Dong).where(Dong.gu == gu, Dong.name == name)).first()

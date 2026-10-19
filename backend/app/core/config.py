@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     cors_origins: str = ""  # 백엔드를 직접 부르는 프론트 주소. 쉼표로 구분, 비우면 CORS 헤더 없음
     base_date: date = date(2026, 9, 30)  # 공통 규칙 2
     sql_echo: bool = False  # true면 실행되는 SQL을 콘솔에 출력
+    juso_api_key: str = ""  # 행정안전부 도로명주소 검색API 승인키. 비우면 주소 검색만 503
 
 
 @lru_cache

@@ -31,6 +31,20 @@ class NotFoundError(AppError):
     code = "NOT_FOUND"
 
 
+class ExternalApiError(AppError):
+    """외부 API(도로명주소 검색 등)가 실패했거나 오류를 돌려줬다."""
+
+    status_code = status.HTTP_502_BAD_GATEWAY
+    code = "EXTERNAL_API_ERROR"
+
+
+class NotConfiguredError(AppError):
+    """기능에 필요한 설정값(외부 API 키 등)이 서버에 없다."""
+
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    code = "NOT_CONFIGURED"
+
+
 def _error(status_code: int, code: str, message: str, details=None) -> JSONResponse:
     err = {"code": code, "message": message}
     if details is not None:
