@@ -1,11 +1,11 @@
 # DB 테이블 문서
 
-Supabase(PostgreSQL)에 올린 테이블 구성입니다. 테이블 정의는 `backend/app/models/`, 적재는 `backend/load_data.py`·`backend/load_sites.py`가 합니다. 행 수는 배포된 API(`GET /api/data/overview`)로 확인한 값입니다(2026-10-20).
+Supabase(PostgreSQL)에 올린 테이블 구성입니다. 테이블 정의는 `backend/app/models/`, 적재는 `backend/load_data.py`·`backend/load_sites.py`가 합니다. 행 수는 배포된 API `GET /api/data/overview`의 `record_counts`(`meta_source`는 같은 응답의 `sources` 개수)로 확인한 값입니다(2026-10-20). `category_keyword`는 이 API가 세지 않아 확인하지 못했습니다.
 
 ## 설계 원칙
 
 1. **모든 지표는 행정동 코드 하나로 이어집니다.** 행안부 행정동 코드 10자리(`adm_cd`)를 기본키로 하는 `dong` 표가 중심이고, 경쟁·안정성·수요·자리 표가 모두 이 코드를 외래키로 가집니다. 축마다 다른 데이터(인허가, 지하철)를 같은 동네끼리 나란히 놓을 수 있는 이유입니다.
-2. **지표는 미리 계산해 넣습니다.** 기준일(2026-09-30)로 고정한 분석이라, 축별 Python 스크립트가 계산한 결과를 적재하고 API는 읽기만 합니다. 요청마다 다시 계산하는 것은 구·서울 평균과 순위뿐입니다.
+2. **지표는 미리 계산해 넣습니다.** 기준일(2026-09-30)로 고정한 분석이라, 축별 Python 스크립트가 계산한 결과를 적재하고 API는 읽기만 합니다. 요청 때 계산하는 것은 비교용 값(경쟁 밀도의 구·서울 평균과 순위, 동별 자리 수)뿐이고, 요청 때 외부 API를 부르는 것은 주소 검색 하나입니다.
 3. **업종은 표로 관리합니다.** 카페·제과점·한식을 `category` 표에 두고, 업종별 지표는 `(adm_cd, category_code)` 복합 기본키로 한 줄씩 둡니다.
 
 ## 관계도
@@ -55,6 +55,7 @@ erDiagram
     subway_station_stat {
         varchar station_name PK "역 이름"
         varchar adm_cd FK
+        varchar gu "자치구"
         float weekly_daily_riders "하루 평균 승하차"
         float office_density "오피스 밀집도"
     }
@@ -76,16 +77,18 @@ erDiagram
 
 `dong |o--o{ site`: 자리 2,082곳은 행정동을 찾지 못해 `adm_cd`가 비어 있습니다(전체 109,943곳 중).
 
+그림에는 API가 읽는 표만 넣었습니다. 그 밖의 외래키: `store_dong.adm_cd` → `dong`, 비어 있는 예비 표인 `store`(→ `dong`, `category`), `yearly_stat`(→ `dong`, `category`), `demand_stat`(→ `dong`). 아래 각 표 설명에 있습니다.
+
 ## 테이블 목록
 
 | 그룹 | 테이블 | 한 줄 = | 행 수 | 원본 | 쓰는 API |
 |---|---|---|---:|---|---|
-| 기준표 | `dong` | 행정동 1곳 | 427 | `competition/dong_area.csv` | 동 목록, 리포트 |
-| | `category` | 업종 1개 | 3 | `load_data.py` 안에서 정의 | 업종 목록, 리포트 |
+| 기준표 | `dong` | 행정동 1곳 | 427 | `competition/dong_area.csv` | 동 목록, 리포트, 주소 검색 |
+| | `category` | 업종 1개 | 3 | `load_data.py` 안에서 정의 | 업종 목록, 리포트, 자리 상세 |
 | 경쟁 | `competition_stat` | 동 × 업종 | 1,281 | `competition/competition_by_dong.csv` | 리포트, 자리 상세 |
-| 안정성 | `stability_stat` | 동 × 업종 | 1,281 | `stability/data/stability_by_dong.csv` | 리포트 |
+| 안정성 | `stability_stat` | 동 × 업종 | 1,281 | `stability/data/stability_by_dong.csv` | 리포트, 자리 상세 |
 | | `stability_aggregate_stat` | 구 또는 서울 × 업종 | 78 | `stability_by_gu.csv`(75), `stability_seoul.csv`(3) | 없음 |
-| 수요 | `subway_station_stat` | 지하철역 1곳 | 306 | `demand/subway_demand_202409_202609.csv` | 리포트 |
+| 수요 | `subway_station_stat` | 지하철역 1곳 | 306 | `demand/subway_demand_202409_202609.csv` | 리포트, 자리 상세 |
 | 자리 | `site` | 지번 1곳 | 109,943 | `data/seoul/sites.csv` (드라이브) | 리포트, 자리 상세, 주소 검색 |
 | | `site_store` | 그 지번에 있었던 가게 1곳 | 576,785 | `data/seoul/site_history.csv` (드라이브) | 자리 상세 |
 | 메타 | `meta_source` | 데이터 출처 1개 | 3 | `load_data.py` 안에서 정의 | 데이터 설명 |
@@ -142,17 +145,17 @@ erDiagram
 | `new_1y`, `closed_1y` | int | | 최근 1년 신규 / 폐업 수 |
 | `cohort_3y` | int | | 기준일 8~3년 전 개업한 가게 수 (3년 생존율의 분모) |
 | `turnover_rate` | float | | 교체율 = `closed_1y ÷ open_base`. `open_base`가 20곳 미만이면 NULL |
-| `new_rate` | float | | 신규율 = `new_1y ÷ open_base`. 교체율과 같이 봅니다 |
-| `survival_3y` | float | | 3년 생존율 = 3~8년 전 개업한 가게 중 3년 넘게 영업했거나 아직 영업 중인 비율. `cohort_3y`가 20곳 미만이면 NULL |
-| `display_turnover_rate`, `display_new_rate`, `display_survival_3y` | float | | **API가 쓰는 값.** 동네 값이 NULL이면 같은 구·같은 업종 값 |
-| `turnover_basis`, `new_rate_basis`, `survival_basis` | varchar(10) | | 표시 값의 출처: `dong`(동네 값) / `gu`(구 평균). 화면에 "구 평균 대체"로 표시 |
+| `new_rate` | float | | 신규율 = `new_1y ÷ open_base`. `open_base`가 20곳 미만이면 NULL. 교체율과 같이 봅니다 |
+| `survival_3y` | float | | 3년 생존율 = 3~8년 전 개업한 가게 중 3년 이상 영업했거나 아직 영업 중인 비율. `cohort_3y`가 20곳 미만이면 NULL |
+| `display_turnover_rate`, `display_new_rate`, `display_survival_3y` | float | | **API가 쓰는 값.** 동네 값이 NULL이면 같은 구·같은 업종 값. 구 값도 표본이 부족하면 NULL |
+| `turnover_basis`, `new_rate_basis`, `survival_basis` | varchar(10) | | 표시 값의 출처: `dong`(동네 값) / `gu`(구 평균, 화면에 "구 평균 대체") / `none`(둘 다 없음). 지금 데이터에는 `none`이 없습니다 |
 | `flow_type` | varchar(20) | | 비어 있음 (설명용 예비 컬럼) |
 
 가게가 적은 동네는 비율이 크게 흔들려서 구 값으로 대체합니다. 동네 값으로 나오는 동은 교체율 기준 한식 398, 카페 286, 제과점 41곳입니다(427곳 중).
 
 ### stability_aggregate_stat · 구·서울 안정성
 
-구 25곳 × 3업종(75행)과 서울 × 3업종(3행). 컬럼은 `stability_stat`과 같은 개수·비율 컬럼이고, 비율 이름만 `survival_rate`입니다.
+구 25곳 × 3업종(75행)과 서울 × 3업종(3행). 개수 컬럼(`open_base`, `open_now`, `new_1y`, `closed_1y`, `cohort_3y`)과 비율 컬럼(`turnover_rate`, `new_rate`, `survival_rate`)은 `stability_stat`과 뜻이 같습니다. `stability_stat`과 달리 `base_date`(기준일)와 `survived_3y`(3년 생존 수)가 있고, `display_*`·`*_basis`·`flow_type`은 없습니다.
 
 | 컬럼 | 타입 | 키 | 설명 |
 |---|---|---|---|
@@ -170,6 +173,7 @@ erDiagram
 |---|---|---|---|
 | `station_name` | varchar(100) | **PK** | 역 이름. 환승역은 한 역으로 합침 |
 | `adm_cd` | varchar(10) | FK → `dong`, INDEX | 역 좌표가 있는 행정동 |
+| `gu` | varchar(20) | | 자치구 |
 | `weekday_daily_riders`, `weekend_daily_riders` | float | | 평일 / 주말 하루 평균 승하차 |
 | `weekly_daily_riders` | float | INDEX | (평일 × 5 + 주말 × 2) ÷ 7. 정렬 기준 |
 | `weekend_weekday_ratio` | float | | 주말 ÷ 평일. 1보다 크면 주말에 더 붐빔 |
@@ -249,6 +253,6 @@ erDiagram
 3. `competition_stat`에서 가게 수·밀도, 같은 표로 구·서울 평균과 순위 계산
 4. `stability_stat`에서 표시용 비율과 출처(`dong`/`gu`)
 5. `site`에서 그 동의 자리 수와 동 평균
-6. `subway_station_stat`에서 그 동의 역
+6. `demand_stat`(비어 있음)과 `subway_station_stat`에서 그 동의 수요
 
-주소 검색(`GET /api/address/search`)은 도로명주소 API가 돌려준 지번으로 `site.site_key`를 찾고, 자리 상세(`GET /api/sites/{id}`)는 `site`와 `site_store`를 읽습니다.
+주소 검색(`GET /api/address/search`)은 도로명주소 API가 돌려준 지번으로 `site.site_key`를 찾고, 행정동 이름은 `dong`에서 찾습니다. 자리 상세(`GET /api/sites/{id}`)는 `site`와 `site_store`를 읽고, 그 동의 경쟁 밀도를 보여 주려고 위 동 리포트(1~6)를 한 번 더 만듭니다. 화면에는 그중 경쟁 값만 씁니다.
