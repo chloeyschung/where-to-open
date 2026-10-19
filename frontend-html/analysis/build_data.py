@@ -8,7 +8,6 @@
   python frontend-html/analysis/build_data.py
 """
 import json
-import os
 from pathlib import Path
 
 import pandas as pd
@@ -17,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 OUT = Path(__file__).with_name("data.js")  # 파일로 바로 열어도 되게 window.ANALYSIS 로 내보냄
 BASE = "2026-09-30"
 CATS = ["카페", "제과점", "한식"]
+MIN_WEEKDAY = 20000  # 오피스형·주말형 역을 고를 때 평일 하루 승하차 최소값
 
 
 def csv(path, **kw):
@@ -34,8 +34,8 @@ st_seoul = csv("stability/data/stability_seoul.csv")
 st_dong = csv("stability/data/stability_by_dong.csv", dtype={"adm_cd": str})
 demand = csv("demand/subway_demand_202409_202609.csv", dtype={"adm_cd": str})
 permits = csv("data/base/permits_base.csv", dtype=str)
-sites = pd.read_csv(ROOT / "data/seoul/sites.csv", dtype={"adm_cd": str})
-history = pd.read_csv(ROOT / "data/seoul/site_history.csv", dtype=str)
+sites = csv("data/seoul/sites.csv", dtype={"adm_cd": str})
+history = csv("data/seoul/site_history.csv", dtype=str)
 
 o, c = pd.to_datetime(permits.permit_date), pd.to_datetime(permits.close_date)
 open_base = (o <= BASE) & (c.isna() | (c > BASE)) & (permits.close_date_missing == "False") & (permits.is_temp == "False")
@@ -90,6 +90,7 @@ dong_value_share = {
 single = sites[sites.max_concurrent == 1]
 dist = single.permits_10y.clip(upper=6).value_counts().sort_index()
 demo_key = "중구 황학동 479"
+assert (sites.site_key == demo_key).sum() == 1, demo_key  # 예시 자리가 정확히 한 줄인지
 demo = sites.set_index("site_key").loc[demo_key]
 demo_hist = history[history.site_key == demo_key].sort_values("opened")
 jari = {
@@ -114,8 +115,8 @@ jari = {
 d = demand.copy()
 d["name"] = d.SUB_STA_NM
 d["where"] = d.gu + " " + d.adm_nm
-office = d[d["평일_일평균_승하차"] >= 20000].sort_values("오피스_밀집도", ascending=False).head(5)
-weekend = d[d["평일_일평균_승하차"] >= 20000].sort_values("주말_평일_비율", ascending=False).head(5)
+office = d[d["평일_일평균_승하차"] >= MIN_WEEKDAY].sort_values("오피스_밀집도", ascending=False).head(5)
+weekend = d[d["평일_일평균_승하차"] >= MIN_WEEKDAY].sort_values("주말_평일_비율", ascending=False).head(5)
 demand_out = {
     "stations": int(len(d)),
     "dongs_with_station": int(d.adm_cd.nunique()),
@@ -124,7 +125,7 @@ demand_out = {
             for _, x in d.sort_values("주간_일평균_승하차", ascending=False).head(10).iterrows()],
     "office": [{"station": x["name"], "where": x["where"], "ratio": r(x["오피스_밀집도"], 1)} for _, x in office.iterrows()],
     "weekend": [{"station": x["name"], "where": x["where"], "ratio": r(x["주말_평일_비율"], 2)} for _, x in weekend.iterrows()],
-    "min_weekday_for_types": 20000,
+    "min_weekday_for_types": MIN_WEEKDAY,
 }
 
 # ---------------------------------------------------------------- 출처 (각 페이지에서 이름 확인, 2026-10-17)

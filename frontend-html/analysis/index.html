@@ -73,9 +73,9 @@ ul.rules li { margin: 6px 0; }
 <body>
 <main>
   <header>
-    <p class="back"><a href="../">← 어디에 열까 서비스로</a></p>
+    <p class="back"><a href="../index.html">← 어디에 열까 서비스로</a></p>
     <h1>데이터 분석</h1>
-    <p>어디에 열까 · 서울 427개 행정동 · 카페·제과점·한식 · 기준일 <span data-v="base_date"></span></p>
+    <p>어디에 열까 · 서울 <span data-v="dongs"></span>개 행정동 · 카페·제과점·한식 · 기준일 <span data-v="base_date"></span></p>
   </header>
 
   <section id="overview">
@@ -172,11 +172,13 @@ function hbar(container, rows, { labelW = 170, max = null } = {}) {
   svg.appendChild(el("line", { x1: labelW, x2: labelW, y1: 0, y2: H - pad, class: "axis" }));
   rows.forEach((r, i) => {
     const y = i * rowH + (rowH - barH) / 2;
-    const w = Math.max(2, (r.value / m) * plotW);
+    const has = r.value != null && !Number.isNaN(r.value);
+    const w = has ? Math.max(2, (r.value / m) * plotW) : 0;
+    const rad = Math.min(4, w / 2);
     const g = el("g");
     g.appendChild(el("text", { x: labelW - 8, y: y + barH / 2 + 4, "text-anchor": "end" }, r.label));
-    g.appendChild(el("path", { d: `M${labelW},${y} h${w - 4} a4,4 0 0 1 4,4 v${barH - 8} a4,4 0 0 1 -4,4 h${-(w - 4)} z`, fill: r.color }));
-    g.appendChild(el("text", { x: labelW + w + 6, y: y + barH / 2 + 4, class: "val" }, r.valueText ?? fmt(r.value)));
+    if (has) g.appendChild(el("path", { d: `M${labelW},${y} h${w - rad} a${rad},${rad} 0 0 1 ${rad},${rad} v${barH - 2 * rad} a${rad},${rad} 0 0 1 ${-rad},${rad} h${-(w - rad)} z`, fill: r.color }));
+    g.appendChild(el("text", { x: labelW + w + 6, y: y + barH / 2 + 4, class: "val" }, has ? (r.valueText ?? fmt(r.value)) : "자료 없음"));
     const hit = el("rect", { x: 0, y: i * rowH, width: W, height: rowH, fill: "transparent" });
     g.appendChild(hit); hover(hit, r.tip);
     svg.appendChild(g);
@@ -187,6 +189,7 @@ function hbar(container, rows, { labelW = 170, max = null } = {}) {
 // ---------------------------------------------------------------- 한눈에
 const O = D.overview;
 document.querySelectorAll('[data-v="base_date"]').forEach(e => e.textContent = O.base_date);
+document.querySelectorAll('[data-v="dongs"]').forEach(e => e.textContent = fmt(O.dongs));
 document.querySelectorAll('[data-v="min_weekday"]').forEach(e => e.textContent = fmt(D.demand.min_weekday_for_types));
 $("tiles").innerHTML = [
   ["기준일 영업 중 가게", fmt(O.open_total) + "곳", CATS.map(k => `${k} ${fmt(O.open_by_category[k])}`).join(" · ")],
@@ -218,7 +221,12 @@ drawComp();
 const S = D.stability;
 const shrinking = S.filter(s => s.closed_1y > s.new_1y).map(s => s.category);
 const growing = S.filter(s => s.new_1y > s.closed_1y).map(s => s.category);
-$("stab-lead").textContent = `최근 1년 동안 ${shrinking.join("·")}은 폐업이 신규보다 많았고` + (growing.length ? `, ${growing.join("·")}은 신규가 더 많았습니다.` : ".");
+const eun = w => ((w.charCodeAt(w.length - 1) - 0xac00) % 28 ? "은" : "는");
+const topic = list => list.join("·") + eun(list[list.length - 1]);
+$("stab-lead").textContent = "최근 1년 동안 " + [
+  shrinking.length ? `${topic(shrinking)} 폐업이 신규보다 많았고` : "",
+  growing.length ? `${topic(growing)} 신규가 더 많았습니다` : "",
+].filter(Boolean).join(", ") + ".";
 (function () {
   const rows = [];
   S.forEach(s => {
@@ -249,12 +257,12 @@ $("demo-title").textContent = `예: ${demo.site} — 10년 동안 ${demo.permits
 const demoRank = J.top_per_slot.findIndex(t => t.site === demo.site) + 1;
 $("demo-note").textContent = `${demo.dong} 단독 자리 평균은 ${demo.dong_avg_single}번입니다.` + (demoRank ? ` 한 칸당 교체 횟수로 서울 단독 자리 중 ${demoRank}위입니다.` : "") + " 막대 하나가 가게 하나입니다.";
 (function () {
-  const start = new Date("2016-09-30"), end = new Date(O.base_date);
+  const end = new Date(O.base_date), start = new Date(end); start.setFullYear(end.getFullYear() - 10);
   const W = 720, labelW = 170, rowH = 24, barH = 12, top = 22;
   const H = top + demo.history.length * rowH + 4;
   const x = d => labelW + (Math.max(start, Math.min(end, d)) - start) / (end - start) * (W - labelW - 10);
   const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
-  for (let y = 2017; y <= 2026; y++) {
+  for (let y = start.getFullYear() + 1; y <= end.getFullYear(); y++) {
     const xx = x(new Date(`${y}-01-01`));
     svg.appendChild(el("line", { x1: xx, x2: xx, y1: top - 4, y2: H, class: "axis" }));
     svg.appendChild(el("text", { x: xx, y: 12, "text-anchor": "middle" }, String(y)));
