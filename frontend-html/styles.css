@@ -44,6 +44,7 @@ a { color: inherit; }
 .primary-nav { display: grid; gap: 5px; }
 .nav-item { min-height: 47px; display: flex; align-items: center; gap: 13px; border: 0; border-radius: 5px; padding: 0 11px; background: transparent; color: #b7c7bd; text-align: left; font-size: 13px; font-weight: 600; transition: background .16s ease, color .16s ease; }
 .nav-item:hover { color: #fff; background: rgba(255,255,255,.07); }
+a.nav-item { text-decoration: none; }
 .nav-item.is-active { background: #2b5540; color: #fff; box-shadow: inset 3px 0 #d8bb73; }
 .nav-index { color: #c0cbbf; font-size: 10px; }
 .sidebar-bottom { margin-top: auto; }
