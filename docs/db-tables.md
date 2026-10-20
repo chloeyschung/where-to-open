@@ -77,7 +77,7 @@ erDiagram
 
 `dong |o--o{ site`: 자리 2,082곳은 행정동을 찾지 못해 `adm_cd`가 비어 있습니다(전체 109,943곳 중).
 
-그림에는 API가 읽는 표만 넣었습니다. 그 밖의 외래키: `store_dong.adm_cd` → `dong`, 비어 있는 예비 표인 `store`(→ `dong`, `category`), `yearly_stat`(→ `dong`, `category`), `demand_stat`(→ `dong`). 아래 각 표 설명에 있습니다.
+그림에는 지표가 담긴 주요 표만 넣었습니다(`stability_aggregate_stat`은 API가 읽지 않지만 안정성 비교 기준이라 넣음). 그 밖의 외래키: `store_dong.adm_cd` → `dong`, 비어 있는 예비 표인 `store`(→ `dong`, `category`), `yearly_stat`(→ `dong`, `category`), `demand_stat`(→ `dong`). 아래 각 표 설명에 있습니다.
 
 ## 테이블 목록
 
