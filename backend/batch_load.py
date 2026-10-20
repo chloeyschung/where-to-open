@@ -54,10 +54,12 @@ class BatchError(Exception):
 
 
 def already_done(base_date: date) -> bool:
-    """이 기준일로 이미 성공한 배치가 있으면 True (매월 1~7일 재시도 중 이미 끝난 달은 건너뛰려고)."""
+    """지금 DB 데이터가 이미 이 기준일(또는 그 뒤)이면 True (매월 1~7일 재시도 중 이미 끝난 달은 건너뛰려고).
+    지금 DB 데이터 = 가장 최근에 성공한 배치. 화면 기준일(app/services/freshness.py)과 같은 규칙"""
     BatchRun.__table__.create(engine, checkfirst=True)
     with engine.connect() as c:
-        last = c.execute(select(func.max(BatchRun.base_date)).where(BatchRun.status == "success")).scalar()
+        last = c.execute(select(BatchRun.base_date).where(BatchRun.status == "success")
+                         .order_by(BatchRun.finished_at.desc()).limit(1)).scalar()
     return last is not None and last >= base_date
 
 

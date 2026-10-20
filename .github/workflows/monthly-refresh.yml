@@ -68,6 +68,7 @@ jobs:
             echo "바뀐 숫자 없음"
           else
             git commit -m "데이터 분석 페이지: 월 배치 기준일 갱신"
+            git checkout -- .   # 배치가 덮어쓴 결과 CSV 는 커밋하지 않으므로 버린다 (남아 있으면 pull --rebase 가 거부됨)
             git pull --rebase   # 배치가 도는 사이 main 에 다른 커밋이 들어왔어도 푸시되게
             git push
           fi
