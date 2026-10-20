@@ -215,4 +215,4 @@ docs/         공통 데이터 규칙, 서비스 아키텍처, DB 테이블, 발
 - [x] FastAPI 엔드포인트 (#12, 주소 검색 #13)
 - [x] 데이터 분석 페이지 (과제 필수 요건, #15)
 - [x] DB 테이블 문서 (#14), API 설명은 Swagger UI
-- [ ] Vercel·Render 배포 후 주소 3개 확보 (API·Swagger는 Render에 배포됨, 화면 Vercel 남음)
+- [x] 배포와 주소 3개: 화면 Vercel, API·Swagger Render (`docs/architecture.md`)
