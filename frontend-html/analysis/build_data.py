@@ -8,13 +8,16 @@
   python frontend-html/analysis/build_data.py
 """
 import json
+import os
 from pathlib import Path
 
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = Path(__file__).with_name("data.js")  # 파일로 바로 열어도 되게 window.ANALYSIS 로 내보냄
-BASE = "2026-09-30"
+BASE = os.environ.get("WTO_BASE_DATE", "2026-09-30")  # 월 배치가 지난달 말일을 넘겨준다
+# 수요 기간 (월 배치가 넘겨준다. 없으면 처음 적재한 2024-09~2026-09)
+DEMAND = "{}~{}".format(*(f"{v[:4]}-{v[4:6]}" for v in (os.environ.get("WTO_DEMAND_START", "20240901"), os.environ.get("WTO_DEMAND_END", "20260930"))))
 CATS = ["카페", "제과점", "한식"]
 MIN_WEEKDAY = 20000  # 오피스형·주말형 역을 고를 때 평일 하루 승하차 최소값
 
@@ -139,9 +142,9 @@ sources = [
     {"name": "서울시 제과점영업 인허가 정보", "org": "서울특별시 (원천: 행정안전부 지방행정 인허가 데이터)",
      "url": "https://data.seoul.go.kr/dataList/OA-16084/S/1/datasetView.do", "method": "CSV 내려받기(공용 파일), Open API LOCALDATA_072218", "axes": "경쟁·안정성·자리"},
     {"name": "서울시 지하철호선별 역별 승하차 인원 정보 (일별)", "org": "서울특별시",
-     "url": "https://data.seoul.go.kr/dataList/OA-12914/S/1/datasetView.do", "method": "월별 CSV 내려받기 (2024-09~2026-09)", "axes": "수요"},
+     "url": "https://data.seoul.go.kr/dataList/OA-12914/S/1/datasetView.do", "method": f"월별 CSV 내려받기 ({DEMAND})", "axes": "수요"},
     {"name": "서울시 지하철 호선별 역별 시간대별 승하차 인원 정보", "org": "서울특별시",
-     "url": "https://data.seoul.go.kr/dataList/OA-12252/S/1/datasetView.do", "method": "Open API CardSubwayTime (2024-09~2026-09)", "axes": "수요"},
+     "url": "https://data.seoul.go.kr/dataList/OA-12252/S/1/datasetView.do", "method": f"Open API CardSubwayTime ({DEMAND})", "axes": "수요"},
     {"name": "서울시 역사마스터 정보 (역 좌표)", "org": "서울특별시",
      "url": "https://data.seoul.go.kr/dataList/OA-21232/S/1/datasetView.do", "method": "파일", "axes": "수요 (역 → 행정동)"},
     {"name": "도로명주소 검색 API", "org": "행정안전부",

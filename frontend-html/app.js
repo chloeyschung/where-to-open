@@ -112,14 +112,79 @@ function metricCell(main, sub = '', bar = null) {
   return `<div class="metric-cell"><span class="metric-main">${escapeHtml(main)}</span>${sub ? `<span class="metric-sub">${escapeHtml(sub)}</span>` : ''}${barMarkup}</div>`;
 }
 
-function makeAxis(title, key, rows, candidateCount) {
+// 비교 지표 설명. 숫자의 정의와 읽는 법 (docs/common-rules.md, docs/db-tables.md 기준)
+const HELP = {
+  competition: '같은 업종 가게가 동네에 얼마나 빽빽한지 봅니다. 높을수록 경쟁이 셉니다. 다만 사람이 많이 모이는 곳이라 높을 수도 있으니 수요와 같이 보세요.',
+  density: '기준일(화면 위에 표시)에 영업 중인 이 업종 가게 수 ÷ 행정동 면적(km²). 크기가 다른 동네끼리 비교하려고 면적으로 나눴습니다. 막대는 지금 비교하는 동네 중 가장 높은 값을 끝으로 한 길이입니다.',
+  rank: '서울 427개 행정동 중 이 업종 밀도 순위입니다. 1위가 가장 빽빽합니다. 서울 평균은 427개 동의 밀도를 단순 평균한 값이라, 평균보다 크면 보통 동네보다 경쟁이 센 편입니다.',
+  stability: '이 업종 가게가 이 동네에서 오래 버티는지, 얼마나 자주 바뀌는지 봅니다. 계산에 쓰는 가게가 20곳 미만이면 비율이 크게 흔들려 같은 구의 값을 쓰고 ‘구 평균 대체’라고 표시합니다.',
+  survival: '3~8년 전에 문을 연 가게 중 3년 이상 영업했거나 지금도 영업 중인 비율입니다. 높을수록 이 업종이 이 동네에서 오래 버팁니다. 사업자가 아니라 가게(인허가) 단위라 통계청 생존율보다 높게 나옵니다.',
+  turnover: '최근 1년 폐업 수 ÷ 1년 전 영업 중이던 가게 수입니다. 높을수록 가게가 자주 바뀝니다. 신규율과 같이 보세요: 둘 다 높으면 들고 나는 게 활발한 상권, 교체율만 높으면 빠지는 상권입니다.',
+  newRate: '최근 1년 새로 문을 연 가게 수 ÷ 1년 전 영업 중이던 가게 수입니다. 교체율보다 높으면 닫는 가게보다 들어오는 가게가 많은 동네입니다.',
+  site: '같은 지번(층·호 구분 없음)에 최근 10년 동안 가게가 얼마나 자주 바뀌었는지 봅니다. 업종을 바꿔도 같은 값이며, 일반음식점·휴게음식점·제과점을 모두 셉니다. 특정 주소는 ‘자리 상세’에서 볼 수 있습니다.',
+  siteCount: '최근 10년 동안 일반음식점·휴게음식점·제과점이 한 번이라도 영업한 지번 수입니다. 동네에 가게 자리가 얼마나 많은지 보는 값입니다.',
+  single: '가게가 한 곳만 들어가는 자리가 최근 10년 동안 맞은 새 가게 수의 평균입니다. 주인만 바뀐 같은 상호는 한 가게로 셉니다. 높을수록 자리가 자주 바뀌는 동네입니다.',
+  perSlot: '여러 가게가 들어가는 건물까지 포함해, 자리마다 10년 새 가게 수를 동시에 영업한 최대 가게 수로 나눈 값의 평균입니다. 큰 건물과 작은 가게 자리를 같은 눈높이로 비교하려는 값입니다.',
+  demand: '동네 안 지하철역으로 사람이 얼마나, 언제 오가는지 봅니다. 역이 없는 동네는 비어 있습니다. 버스와 생활인구는 포함하지 않습니다.',
+  stations: '역별 하루 평균 승차+하차 인원(지하철 원본이 있는 최근 25개월, 데이터와 기준 화면에 기간 표시)입니다. 한 사람이 타고 내리면 두 번 세서 유동인구와 다릅니다. 오전 하차(07~09시)가 많으면 일하러 오는 사람이 많은 동네, 저녁 하차(18~20시)는 저녁에 모이는 사람, 밤 승차(22~23시)는 늦게까지 머무는 사람이 많은 동네입니다.',
+};
+
+function helpIcon(text, name) {
+  return text ? `<button class="help" type="button" aria-label="${escapeHtml(name)} 설명" data-tip="${escapeHtml(text)}">?</button>` : '';
+}
+
+function makeAxis(title, key, rows, candidateCount, help = '') {
   const body = rows.map((row) => `
     <div class="metric-grid" style="--candidate-count:${candidateCount}">
-      <div class="metric-label">${row.label}${row.caption ? `<span class="metric-caption">${row.caption}</span>` : ''}</div>
+      <div class="metric-label"><span class="metric-name">${row.label}${helpIcon(row.help, row.label)}</span>${row.caption ? `<span class="metric-caption">${row.caption}</span>` : ''}</div>
       ${row.cells.join('')}
     </div>`).join('');
-  return `<section class="metric-section" data-axis="${key}"><h3 class="metric-section-title">${title}</h3>${body}</section>`;
+  return `<section class="metric-section" data-axis="${key}"><h3 class="metric-section-title">${title}${helpIcon(help, title)}</h3>${body}</section>`;
 }
+
+// 말풍선 하나를 화면에 고정해 두고 아이콘 옆에 띄운다. 마우스는 올리면, 터치·키보드는 누르거나 초점이 가면 보임
+const helpTip = document.createElement('div');
+helpTip.id = 'help-tip';
+helpTip.setAttribute('role', 'tooltip');
+helpTip.hidden = true;
+document.body.append(helpTip);
+function showHelp(button) {
+  helpTip.textContent = button.dataset.tip;
+  helpTip.style.left = '0px'; // 이전 위치 때문에 폭이 줄어든 채로 재지 않게
+  helpTip.style.top = '0px';
+  helpTip.hidden = false;
+  const box = button.getBoundingClientRect();
+  const left = Math.min(Math.max(8, box.left), innerWidth - helpTip.offsetWidth - 8);
+  const below = box.bottom + 8;
+  const top = below + helpTip.offsetHeight > innerHeight - 8 ? box.top - helpTip.offsetHeight - 8 : below;
+  helpTip.style.left = `${left}px`;
+  helpTip.style.top = `${Math.max(8, top)}px`;
+}
+let pinnedHelp = null; // 누르거나 탭해서 연 말풍선은 다른 곳을 누를 때까지 둔다
+function hideHelp() { helpTip.hidden = true; pinnedHelp = null; }
+document.addEventListener('pointerover', (event) => {
+  const b = event.target.closest('.help');
+  if (b && event.pointerType === 'mouse') showHelp(b);
+});
+document.addEventListener('pointerout', (event) => {
+  if (event.pointerType !== 'mouse' || pinnedHelp || !event.target.closest('.help')) return;
+  if (!event.relatedTarget?.closest?.('.help')) hideHelp();
+});
+document.addEventListener('focusin', (event) => {
+  const b = event.target.closest('.help');
+  if (b && b.matches(':focus-visible')) showHelp(b); // 키보드로 이동했을 때
+});
+document.addEventListener('focusout', (event) => { if (event.target.closest('.help') && !pinnedHelp) hideHelp(); });
+document.addEventListener('click', (event) => {
+  const b = event.target.closest('.help');
+  if (!b) { hideHelp(); return; }
+  event.preventDefault();
+  if (pinnedHelp === b) { hideHelp(); return; }
+  showHelp(b);
+  pinnedHelp = b;
+});
+addEventListener('scroll', hideHelp, { passive: true, capture: true });
+document.addEventListener('keydown', (event) => { if (event.key === 'Escape') hideHelp(); });
 
 function renderDemand(report) {
   const stations = report?.demand?.stations || [];
@@ -137,26 +202,26 @@ function renderComparison(items) {
   const headings = `<div class="comparison-head" style="--candidate-count:${items.length}"><div class="head-label">비교 항목</div>${items.map((item) => `
     <div><span class="head-label">${escapeHtml(item.dong.gu)}</span><strong class="district-title">${escapeHtml(item.dong.name)}</strong><span class="district-meta">${formatNumber(item.dong.area_km2, 2)} km²</span></div>`).join('')}</div>`;
   const competition = makeAxis('경쟁 · 같은 업종이 얼마나 밀집해 있나', 'competition', [
-    { label: '점포 밀도', caption: '개 / km²', cells: items.map((item) => {
+    { label: '점포 밀도', caption: '개 / km²', help: HELP.density, cells: items.map((item) => {
       const value = item.competition?.density_per_km2;
       const max = Math.max(1, ...items.map((candidate) => candidate.competition?.density_per_km2 || 0));
       return metricCell(value == null ? '자료 없음' : `${formatNumber(value, 1)}개`, `${formatNumber(item.competition?.open_count)}곳 영업 중`, value == null ? null : (value / max) * 100);
     }) },
-    { label: '서울 내 밀도 비교', cells: items.map((item) => item.competition ? metricCell(`${formatNumber(item.competition.seoul_rank)} / ${formatNumber(item.competition.seoul_dong_count)}위`, `서울 평균 ${formatNumber(item.competition.seoul_avg_density, 1)}개/km²`) : metricCell('자료 없음')) },
-  ], items.length);
+    { label: '서울 내 밀도 비교', help: HELP.rank, cells: items.map((item) => item.competition ? metricCell(`${formatNumber(item.competition.seoul_rank)} / ${formatNumber(item.competition.seoul_dong_count)}위`, `서울 평균 ${formatNumber(item.competition.seoul_avg_density, 1)}개/km²`) : metricCell('자료 없음')) },
+  ], items.length, HELP.competition);
   const stability = makeAxis('안정성 · 버팀과 교체 흐름', 'stability', [
-    { label: '3년 생존율', cells: items.map((item) => item.stability ? metricCell(formatPercent(item.stability.survival_3y), basisLabel(item.stability.survival_basis)) : metricCell('자료 없음')) },
-    { label: '교체율', cells: items.map((item) => item.stability ? metricCell(formatPercent(item.stability.turnover_rate), basisLabel(item.stability.turnover_basis)) : metricCell('자료 없음')) },
-    { label: '신규율', cells: items.map((item) => item.stability ? metricCell(formatPercent(item.stability.new_rate), basisLabel(item.stability.new_rate_basis)) : metricCell('자료 없음')) },
-  ], items.length);
+    { label: '3년 생존율', help: HELP.survival, cells: items.map((item) => item.stability ? metricCell(formatPercent(item.stability.survival_3y), basisLabel(item.stability.survival_basis)) : metricCell('자료 없음')) },
+    { label: '교체율', help: HELP.turnover, cells: items.map((item) => item.stability ? metricCell(formatPercent(item.stability.turnover_rate), basisLabel(item.stability.turnover_basis)) : metricCell('자료 없음')) },
+    { label: '신규율', help: HELP.newRate, cells: items.map((item) => item.stability ? metricCell(formatPercent(item.stability.new_rate), basisLabel(item.stability.new_rate_basis)) : metricCell('자료 없음')) },
+  ], items.length, HELP.stability);
   const site = makeAxis('자리 · 같은 지번의 최근 10년', 'site', [
-    { label: '자리 수', cells: items.map((item) => item.site ? metricCell(`${formatNumber(item.site.site_count)}곳`, '10년 이력 보유 주소') : metricCell('자료 없음')) },
-    { label: '단독 자리 10년 새 가게', cells: items.map((item) => item.site ? metricCell(`${formatNumber(item.site.avg_single_permits_10y, 2)}곳`, '가게 한 곳짜리 자리 평균') : metricCell('자료 없음')) },
-    { label: '한 칸당 평균 교체', cells: items.map((item) => item.site ? metricCell(`${formatNumber(item.site.avg_per_slot_10y, 2)}회`, '10년 새 가게 ÷ 동시 영업 수') : metricCell('자료 없음')) },
-  ], items.length);
+    { label: '자리 수', help: HELP.siteCount, cells: items.map((item) => item.site ? metricCell(`${formatNumber(item.site.site_count)}곳`, '10년 이력 보유 주소') : metricCell('자료 없음')) },
+    { label: '단독 자리 10년 새 가게', help: HELP.single, cells: items.map((item) => item.site ? metricCell(`${formatNumber(item.site.avg_single_permits_10y, 2)}곳`, '가게 한 곳짜리 자리 평균') : metricCell('자료 없음')) },
+    { label: '한 칸당 평균 교체', help: HELP.perSlot, cells: items.map((item) => item.site ? metricCell(`${formatNumber(item.site.avg_per_slot_10y, 2)}회`, '10년 새 가게 ÷ 동시 영업 수') : metricCell('자료 없음')) },
+  ], items.length, HELP.site);
   const demand = makeAxis('수요 · 오전, 저녁, 밤', 'demand', [
-    { label: '연결 역별 승하차', caption: '하루 평균 · 최대 3개 역', cells: items.map((item) => `<div class="metric-cell">${renderDemand(item)}</div>`) },
-  ], items.length);
+    { label: '연결 역별 승하차', caption: '하루 평균 · 최대 3개 역', help: HELP.stations, cells: items.map((item) => `<div class="metric-cell">${renderDemand(item)}</div>`) },
+  ], items.length, HELP.demand);
   host.innerHTML = `<div class="comparison" style="--candidate-count:${items.length}">${headings}${competition}${stability}${site}${demand}</div>`;
   $('#results-heading').hidden = false;
 }
@@ -182,6 +247,8 @@ function renderSite(site, dongName = '') {
 
 function renderOverview(data) {
   $('#base-date-heading').textContent = data.base_date.replaceAll('-', '.');
+  const siteCount = (data.record_counts || []).find((row) => row.table === 'site');
+  if (siteCount) $('#site-count-stamp').textContent = `${formatNumber(siteCount.records)}곳`;
   const host = $('#data-result');
   const summary = (data.record_counts || []).filter((row) => ['dong', 'competition_stat', 'stability_stat', 'subway_station_stat', 'site', 'site_store'].includes(row.table));
   const sources = data.sources || [];
@@ -192,10 +259,29 @@ function renderOverview(data) {
     <p class="form-hint policy-note">${escapeHtml(data.score_policy)}</p>`;
 }
 
+const STAGE_LABEL = { done: '최근 실행 완료', running: '진행 중', failed: '최근 실행 실패', not_run: '최근 실행에서 건너뜀', not_tracked: '자동 갱신 기록 없음' };
+
+function kstTime(value) {
+  return new Date(value).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+// 데이터 기준일 (화면 위 '라이브 사인'). 물음표에 올리면 갱신 주기만 짧게 알려 준다
+function renderFreshness(p) {
+  if (!p || !p.base_date || !p.next_run_at) return; // 예전 API(배포 직후 몇 분)에는 이 필드가 없다. 배지만 숨기고 넘어감
+  const base = p.base_date.replaceAll('-', '.');
+  $('#fresh-label').textContent = `기준일 ${base}`;
+  $('#fresh-help').dataset.tip = '데이터는 매월 자동으로 갱신됩니다.';
+  $('#data-freshness').hidden = false;
+  $('#base-date-heading').textContent = base;
+}
+
 async function loadPipeline() {
   const response = await api('/api/data/pipeline');
   const host = $('#pipeline-result');
-  host.innerHTML = (response.stages || []).map((stage, index) => `<div class="pipeline-step"><span class="pipeline-step-index">0${index + 1}</span><strong>${escapeHtml(stage.name)}</strong><p>${escapeHtml(stage.description)}</p><small>${escapeHtml(stage.status === 'not_tracked' ? '실행 상태 미추적' : stage.status)}</small></div>`).join('');
+  host.innerHTML = (response.stages || []).map((stage, index) => `<div class="pipeline-step"><span class="pipeline-step-index">0${index + 1}</span><strong>${escapeHtml(stage.name)}</strong><p>${escapeHtml(stage.description)}</p><small>${escapeHtml(STAGE_LABEL[stage.status] || stage.status)}</small></div>`).join('');
+  $('#pipeline-note').textContent = response.last_success ? `최근 갱신 ${kstTime(response.last_success.finished_at)}` : '매월 자동 갱신';
+  try { renderFreshness(response); } catch (error) { console.warn('기준일 표시 실패', error); }
+  return response;
 }
 
 async function initialize() {

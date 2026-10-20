@@ -48,8 +48,14 @@
       <main class="main-content">
         <header class="topbar">
           <div class="breadcrumbs"><span>SEOUL</span><span class="crumb-slash">/</span><span id="current-crumb">동네 비교</span></div>
-          <div class="connection-state" id="connection-state" role="status">
-            <span class="state-dot"></span><span id="connection-label">API 연결 확인 중</span>
+          <div class="topbar-status">
+            <div class="data-freshness" id="data-freshness" hidden>
+              <span class="fresh-dot"></span><span id="fresh-label">데이터 기준일 확인 중</span>
+              <button class="help" type="button" id="fresh-help" aria-label="데이터 갱신 주기" data-tip="">?</button>
+            </div>
+            <div class="connection-state" id="connection-state" role="status">
+              <span class="state-dot"></span><span id="connection-label">API 연결 확인 중</span>
+            </div>
           </div>
         </header>
 
@@ -112,7 +118,7 @@
               <h1 id="site-title">자리의 시간을<br /><em>되짚어봅니다.</em></h1>
               <p class="lede">주소 단위로 쌓인 인허가 이력과 교체 지표를 확인합니다.<br />층·호가 아닌 같은 지번 기준입니다.</p>
             </div>
-            <div class="heading-stamp"><span>자리 데이터</span><strong>109,943곳</strong><small>10년 이력 적재</small></div>
+            <div class="heading-stamp"><span>자리 데이터</span><strong id="site-count-stamp">109,943곳</strong><small>10년 이력 적재</small></div>
           </div>
           <form class="site-search" id="site-form">
             <label for="site-address">후보 주소</label>
@@ -144,7 +150,7 @@
             <div class="loading-state">데이터 기준을 불러오는 중...</div>
           </div>
           <div class="pipeline-section">
-            <div class="section-heading"><div><p class="eyebrow">PIPELINE</p><h2>수집과 정규화</h2></div><span class="no-score-note">실행 이력 미추적</span></div>
+            <div class="section-heading"><div><p class="eyebrow">PIPELINE</p><h2>수집과 정규화</h2></div><span class="no-score-note" id="pipeline-note">매월 자동 갱신</span></div>
             <div id="pipeline-result" class="pipeline-list"></div>
           </div>
         </section>

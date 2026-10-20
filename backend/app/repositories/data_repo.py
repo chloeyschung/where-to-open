@@ -1,7 +1,9 @@
 from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models import (
+    BatchRun,
     Category,
     CompetitionStat,
     DemandStat,
@@ -21,6 +23,24 @@ from app.models import (
 class DataRepository:
     def __init__(self, db: Session):
         self.db = db
+
+    def _first_run(self, stmt) -> BatchRun | None:
+        # batch_run 표가 아직 없거나 조회가 실패해도 다른 API가 멈추지 않게, SAVEPOINT 안에서 읽고 실패하면 None
+        try:
+            with self.db.begin_nested():
+                return self.db.scalars(stmt).first()
+        except SQLAlchemyError:
+            return None
+
+    def last_run(self) -> BatchRun | None:
+        #   SELECT ... FROM batch_run ORDER BY started_at DESC LIMIT 1
+        return self._first_run(select(BatchRun).order_by(BatchRun.started_at.desc()).limit(1))
+
+    def last_success(self) -> BatchRun | None:
+        #   SELECT ... FROM batch_run WHERE status = 'success' ORDER BY finished_at DESC LIMIT 1
+        return self._first_run(
+            select(BatchRun).where(BatchRun.status == "success").order_by(BatchRun.finished_at.desc()).limit(1)
+        )
 
     def record_counts(self) -> list[tuple[str, str, int]]:
         datasets = [

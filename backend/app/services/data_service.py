@@ -2,11 +2,12 @@ from datetime import date, datetime
 
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
 from app.repositories.data_repo import DataRepository
+from app.services.freshness import SCHEDULE, STAGES, current_base_date, demand_window, next_scheduled_run
 from app.schemas.data import (
     DataOverviewResponse,
     DataPipelineResponse,
+    BatchRunResponse,
     DataSourceResponse,
     MetricDefinitionResponse,
     PipelineStageResponse,
@@ -43,11 +44,13 @@ def _sources() -> list[DataSourceResponse]:
 
 class DataService:
     def __init__(self, db: Session):
+        self.db = db
         self.data = DataRepository(db)
 
     def overview(self) -> DataOverviewResponse:
+        start, end = demand_window(self.db)
         return DataOverviewResponse(
-            base_date=get_settings().base_date,
+            base_date=current_base_date(self.db),
             sources=_sources(),
             record_counts=[
                 RecordCountResponse(dataset=label, table=table, records=count)
@@ -58,23 +61,42 @@ class DataService:
                 MetricDefinitionResponse(axis="안정성", metric="3년 생존율", definition="3~8년 전 개업한 가게 중 3년 이상 영업했거나 아직 영업 중인 비율. 대상이 20곳 미만이면 구 값"),
                 MetricDefinitionResponse(axis="안정성", metric="교체율·신규율", definition="최근 1년 폐업·신규 수를 1년 전 영업 중 가게 수로 나눈 비율. 1년 전 영업 중이 20곳 미만이면 구 값"),
                 MetricDefinitionResponse(axis="자리", metric="10년 새 가게 수", definition="같은 지번(층·호 구분 없음)에 최근 10년 새로 들어온 가게 수. 주인만 바뀐 같은 상호는 한 가게로 셈"),
-                MetricDefinitionResponse(axis="수요", metric="역별 승하차", definition="2024-09~2026-09 역별 평일·주말 하루 평균과 출퇴근·심야 지표"),
+                MetricDefinitionResponse(axis="수요", metric="역별 승하차", definition=f"{start:%Y-%m}~{end:%Y-%m} 역별 평일·주말 하루 평균과 출퇴근·심야 지표"),
             ],
             score_policy="네 축을 하나의 종합 점수로 합산하거나 순위를 매기지 않습니다.",
         )
 
     def pipeline(self) -> DataPipelineResponse:
-        stages = [
-            ("collect", "수집", "공공데이터 원천에서 원본을 확보합니다."),
-            ("normalize", "정규화", "행정동 코드와 주소 표기를 공통 기준으로 맞춥니다."),
-            ("aggregate", "집계", "축별 지표와 시간대 통계를 사전 계산합니다."),
-            ("load", "적재", "정제·집계 결과를 PostgreSQL 테이블에 반영합니다."),
-        ]
+        last, ok = self.data.last_run(), self.data.last_success()
+        keys = [k for k, _, _ in STAGES]
+
+        def stage_status(key: str) -> str:
+            if last is None:
+                return "not_tracked"
+            if last.status == "success":
+                return "done"
+            at = keys.index(last.stage) if last.stage in keys else -1
+            here = keys.index(key)
+            if here < at:
+                return "done"
+            if here == at:
+                return {"running": "running", "failed": "failed"}.get(last.status, "not_run")
+            return "not_run"
+
+        def run(r):
+            return None if r is None else BatchRunResponse.model_validate(r, from_attributes=True)
+
         return DataPipelineResponse(
-            tracking_available=False,
+            tracking_available=last is not None,
             stages=[
-                PipelineStageResponse(key=key, name=name, description=description, status="not_tracked", last_run_at=None)
-                for key, name, description in stages
+                PipelineStageResponse(key=k, name=n, description=d, status=stage_status(k),
+                                      last_run_at=last.started_at if last else None)
+                for k, n, d in STAGES
             ],
             sources=_sources(),
+            base_date=current_base_date(self.db),
+            schedule=SCHEDULE,
+            next_run_at=next_scheduled_run(ok.base_date if ok else None),
+            last_run=run(last),
+            last_success=run(ok),
         )

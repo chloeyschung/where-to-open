@@ -74,7 +74,7 @@ class DongReportResponse(BaseModel):
     competition: CompetitionSection | None = Field(description="경쟁 축. 기준일 영업 중 가게 수와 밀도, 구·서울 비교")
     stability: "StabilitySection | None" = Field(description="안정성 축. 3년 생존율·교체율·신규율")
     site: "SiteSection | None" = Field(description="자리 축. 행정동 안 자리(지번)들의 최근 10년 요약")
-    demand: "DemandSection | None" = Field(description="수요 축. 행정동 안 지하철역별 하루 평균 승하차 (2024-09~2026-09). 역이 없으면 null")
+    demand: "DemandSection | None" = Field(description="수요 축. 행정동 안 지하철역별 하루 평균 승하차 (지하철 원본이 있는 최근 25개월). 역이 없으면 null")
 
 
 class StabilitySection(BaseModel):

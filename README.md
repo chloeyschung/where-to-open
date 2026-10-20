@@ -185,6 +185,7 @@ jari/         자리 축: 자리 지표, 주소로 행정동 채우기
 demand/       수요 축: 지하철 역별 승하차, 역 → 행정동
 backend/      API 서버 (FastAPI), DB 적재 스크립트 (load_data.py, load_sites.py)
 frontend-html/ 서비스 화면 (HTML·CSS·JS)
+batch/        월간 데이터 갱신 (매월 1일, 실패하면 7일까지 재시도, GitHub Actions)
 docs/         공통 데이터 규칙, 서비스 아키텍처, DB 테이블, 발표 근거
 ```
 

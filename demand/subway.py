@@ -51,8 +51,9 @@ DAILY_ARCHIVE_PAGE = "https://data.seoul.go.kr/dataList/OA-12914/S/1/datasetView
 DAILY_ARCHIVE_DOWNLOAD = (
     "https://datafile.seoul.go.kr/bigfile/iot/inf/nio_download.do?&useCache=false"
 )
-START_DATE = "20240901"
-END_DATE = "20260930"
+# 기간: 월 배치(batch/run.py)는 환경변수로 최근 25개월을 넘겨준다. 없으면 2024-09-01 ~ 2026-09-30
+START_DATE = os.environ.get("WTO_DEMAND_START", "20240901")
+END_DATE = os.environ.get("WTO_DEMAND_END", "20260930")
 PAGE_SIZE = 1000
 
 
@@ -349,9 +350,11 @@ def build_station_demand(start_date=START_DATE, end_date=END_DATE, cache_dir=Non
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="역별 지하철 수요 지표 (2024-09 ~ 2026-09)")
     parser.add_argument("--cache", help="받은 원본(월별 일별 CSV·시간대 JSON)을 저장하고 다시 쓸 폴더")
+    parser.add_argument("--out", type=Path, default=Path(__file__).with_name("subway_demand_202409_202609.csv"),
+                        help="결과 파일 (기본: 이 폴더의 subway_demand_202409_202609.csv)")
     args = parser.parse_args()
     final_demand_df = build_station_demand(cache_dir=args.cache)
-    output_path = Path(__file__).with_name("subway_demand_202409_202609.csv")
+    output_path = args.out
     final_demand_df.to_csv(output_path, index=False, encoding="utf-8-sig")
     print(final_demand_df.head(20).to_string(index=False))
     print(f"\n전체 결과 저장: {output_path}")
