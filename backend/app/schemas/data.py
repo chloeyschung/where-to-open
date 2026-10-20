@@ -56,6 +56,6 @@ class DataPipelineResponse(BaseModel):
     sources: list[DataSourceResponse]
     base_date: date = Field(description="지금 서비스 데이터의 기준일 (마지막 성공한 배치, 없으면 처음 적재한 기준일)")
     schedule: str = Field(description="갱신 일정")
-    next_run_at: datetime = Field(description="다음 예약 실행 시각 (KST)")
+    next_run_at: datetime = Field(description="다음 예약 실행 시각 (KST). 이번 달 갱신이 실패했으면 다음 날 09:00 (7일까지)")
     last_run: BatchRunResponse | None = Field(description="가장 최근 실행 (성공·실패 모두)")
     last_success: BatchRunResponse | None = Field(description="가장 최근 성공한 실행. 실패해도 서비스는 이 데이터를 계속 씀")

@@ -265,28 +265,13 @@ function kstTime(value) {
   return new Date(value).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-// 데이터가 언제 기준이고 언제 다시 갱신되는지 (화면 위 '라이브 사인')
+// 데이터 기준일 (화면 위 '라이브 사인'). 물음표에 올리면 갱신 주기만 짧게 알려 준다
 function renderFreshness(p) {
-  const box = $('#data-freshness');
   if (!p || !p.base_date || !p.next_run_at) return; // 예전 API(배포 직후 몇 분)에는 이 필드가 없다. 배지만 숨기고 넘어감
   const base = p.base_date.replaceAll('-', '.');
-  $('#fresh-label').textContent = `데이터 ${base} 기준 · 매월 1일 갱신`;
-  const ok = p.last_success;
-  const last = p.last_run;
-  const lines = [
-    `공공데이터를 매월 1일 09:00(한국 시간)에 자동으로 다시 받아, 지난달 말일 기준으로 네 축을 다시 계산합니다.`,
-    `검증을 통과해야만 화면 데이터가 바뀌고, 실패하면 이전 데이터를 그대로 보여 줍니다.`,
-    ok ? `최근 갱신: ${kstTime(ok.finished_at)} 성공 (기준일 ${ok.base_date})`
-       : `자동 갱신 기록 없음: 지금 데이터는 ${p.base_date} 기준으로 처음 적재한 것입니다.`,
-  ];
-  if (last && last.status === 'failed' && (!ok || new Date(last.started_at) > new Date(ok.finished_at))) {
-    lines.push(`최근 시도: ${kstTime(last.started_at)} 실패 → 이전 데이터를 유지하고 있습니다.`);
-  }
-  lines.push(`다음 갱신 예정: ${kstTime(p.next_run_at)}`);
-  $('#fresh-help').dataset.tip = lines.join('\n');
-  box.classList.toggle('is-fresh', Boolean(ok));
-  box.classList.toggle('is-stale', Boolean(last && last.status === 'failed'));
-  box.hidden = false;
+  $('#fresh-label').textContent = `기준일 ${base}`;
+  $('#fresh-help').dataset.tip = '데이터는 매월 자동으로 갱신됩니다.';
+  $('#data-freshness').hidden = false;
   $('#base-date-heading').textContent = base;
 }
 
@@ -294,7 +279,7 @@ async function loadPipeline() {
   const response = await api('/api/data/pipeline');
   const host = $('#pipeline-result');
   host.innerHTML = (response.stages || []).map((stage, index) => `<div class="pipeline-step"><span class="pipeline-step-index">0${index + 1}</span><strong>${escapeHtml(stage.name)}</strong><p>${escapeHtml(stage.description)}</p><small>${escapeHtml(STAGE_LABEL[stage.status] || stage.status)}</small></div>`).join('');
-  $('#pipeline-note').textContent = response.last_success ? `최근 갱신 ${kstTime(response.last_success.finished_at)}` : '매월 1일 자동 갱신';
+  $('#pipeline-note').textContent = response.last_success ? `최근 갱신 ${kstTime(response.last_success.finished_at)}` : '매월 자동 갱신';
   try { renderFreshness(response); } catch (error) { console.warn('기준일 표시 실패', error); }
   return response;
 }

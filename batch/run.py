@@ -1,6 +1,8 @@
 """월 배치: 공공데이터를 다시 받아 네 축을 계산하고, 검증을 통과하면 DB를 한 번에 교체한다.
 
-GitHub Actions(.github/workflows/monthly-refresh.yml)가 매월 1일 09:00(KST)에 실행한다. 손으로도 돌릴 수 있다.
+GitHub Actions(.github/workflows/monthly-refresh.yml)가 매월 1~7일 매일 09:00(KST)에 실행한다.
+예약 실행은 이번 기준일로 이미 성공했으면 바로 끝난다. 그래서 1일에 실패하면 7일까지 하루 한 번 다시 시도한다.
+손으로 돌리면(--trigger manual) 이미 성공한 기준일도 다시 계산한다.
 
 단계 (backend/app/services/freshness.py 의 STAGES 와 같은 이름)
   fetch     서울 Open API에서 인허가 3종을 받는다 (batch/fetch_permits.py)
@@ -192,7 +194,10 @@ def main():
     if load:
         sys.path.insert(0, str(ROOT / "backend"))
         os.chdir(ROOT / "backend")  # load_data·load_sites 가 backend 폴더 기준으로 import 된다
-        from batch_load import BatchRunner  # noqa: E402
+        from batch_load import BatchRunner, already_done  # noqa: E402
+        if a.trigger == "schedule" and already_done(a.base_date):
+            log.info("기준일 %s 는 이미 갱신됨. 이번 예약 실행은 건너뜁니다", a.base_date)
+            return
         runner = BatchRunner(a.trigger, a.base_date, None, None)
         os.chdir(ROOT)
 

@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 
 app = FastAPI(
     title="where to open API",
-    description="공공데이터로 보는 소규모 창업 입지 리포트. 데이터는 매월 1일 배치로 갱신하고, 기준일은 각 응답의 base_date에 있습니다.",
+    description="공공데이터로 보는 소규모 창업 입지 리포트. 데이터는 매월 배치로 갱신하고, 기준일은 각 응답의 base_date에 있습니다.",
     version="0.1.0",
 )
 

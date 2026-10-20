@@ -62,9 +62,7 @@ a.nav-item { text-decoration: none; }
 #current-crumb { color: #344f40; }
 .topbar-status { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; justify-content: flex-end; }
 .data-freshness { display: inline-flex; align-items: center; gap: 7px; color: #587365; font-size: 11px; }
-.fresh-dot { width: 8px; height: 8px; border-radius: 50%; background: #9aa8a0; }
-.data-freshness.is-fresh .fresh-dot { background: #4c9d6f; box-shadow: 0 0 0 3px rgba(76,157,111,.13); }
-.data-freshness.is-stale .fresh-dot { background: var(--gold); box-shadow: 0 0 0 3px rgba(173,122,33,.15); }
+.fresh-dot { width: 8px; height: 8px; border-radius: 50%; background: #4c9d6f; box-shadow: 0 0 0 3px rgba(76,157,111,.13); }
 .connection-state { display: inline-flex; align-items: center; gap: 8px; color: #587365; font-size: 11px; }
 .state-dot { width: 8px; height: 8px; border-radius: 50%; background: #b9a260; box-shadow: 0 0 0 3px rgba(185,162,96,.14); }
 .connection-state.is-online .state-dot { background: #4c9d6f; box-shadow: 0 0 0 3px rgba(76,157,111,.13); }

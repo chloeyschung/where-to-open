@@ -111,13 +111,13 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    CRON["GitHub Actions<br/>매월 1일 09:00 KST · 수동 실행"] --> RUN["batch/run.py<br/>fetch → prepare → axes → validate"]
+    CRON["GitHub Actions<br/>매월 1~7일 09:00 KST<br/>(이미 성공한 달은 건너뜀) · 수동 실행"] --> RUN["batch/run.py<br/>fetch → prepare → axes → validate"]
     API2["서울 Open API<br/>인허가 3종 · 지하철"] --> RUN
     RUN -->|검증 통과| LOAD["backend/batch_load.py<br/>임시 표 → 한 트랜잭션 교체"]
     RUN -.->|실패| KEEP["DB 그대로<br/>batch_run 에 실패 기록"]
     LOAD --> DB2[("Supabase PostgreSQL")]
     LOAD --> LOG["batch_run<br/>실행 기록"]
-    LOG --> SHOW["GET /api/data/pipeline<br/>화면 위 '데이터 ○○ 기준 · 매월 1일 갱신'"]
+    LOG --> SHOW["GET /api/data/pipeline<br/>화면 위 '기준일 ○○'"]
 ```
 
 기준일은 지난달 말일입니다. 중복 실행은 GitHub Actions `concurrency`와 PostgreSQL advisory lock으로 막고, 실패하면 기존 데이터를 그대로 둡니다. 자세한 내용은 `batch/README.md`에 있습니다.

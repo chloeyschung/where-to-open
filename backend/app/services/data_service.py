@@ -96,7 +96,7 @@ class DataService:
             sources=_sources(),
             base_date=current_base_date(self.db),
             schedule=SCHEDULE,
-            next_run_at=next_scheduled_run(),
+            next_run_at=next_scheduled_run(ok.base_date if ok else None),
             last_run=run(last),
             last_success=run(ok),
         )

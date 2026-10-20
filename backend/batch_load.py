@@ -4,6 +4,8 @@ batch/run.py 가 부른다. 직접 실행하지 않는다.
 
 - 중복 실행 방지: PostgreSQL advisory lock. 이미 다른 배치가 잡고 있으면 이번 실행은 skipped 로 기록하고 끝낸다.
   (GitHub Actions 의 concurrency 설정과 함께, 실행 위치가 여러 곳이어도 DB 교체는 한 번에 하나만 한다)
+  계산하는 수십 분 동안 잠금 연결이 끊길 수 있어, 교체 직전에 연결을 확인하고 끊겼으면 다시 잠근다.
+- 잠금을 잡았는데 running 으로 남은 예전 기록은 중간에 강제 종료된 것이라 failed 로 바꾼다.
 - 실행 기록: batch_run 표. 시작할 때 running, 단계마다 stage, 끝나면 success / failed.
   기록은 교체 트랜잭션과 다른 짧은 트랜잭션으로 써서, 교체가 롤백돼도 실패 기록은 남는다.
 - 교체: 새 데이터를 임시 표(stg_*)에 넣고 검증한 뒤, 한 트랜잭션 안에서 기존 행을 지우고 새 행을 넣는다.
@@ -16,6 +18,7 @@ from datetime import date, datetime, timezone
 from typing import Any
 
 from sqlalchemy import func, select, text, update
+from sqlalchemy.exc import DBAPIError
 
 import load_data
 import load_sites
@@ -50,6 +53,14 @@ class BatchError(Exception):
     pass
 
 
+def already_done(base_date: date) -> bool:
+    """이 기준일로 이미 성공한 배치가 있으면 True (매월 1~7일 재시도 중 이미 끝난 달은 건너뛰려고)."""
+    BatchRun.__table__.create(engine, checkfirst=True)
+    with engine.connect() as c:
+        last = c.execute(select(func.max(BatchRun.base_date)).where(BatchRun.status == "success")).scalar()
+    return last is not None and last >= base_date
+
+
 class BatchRunner:
     def __init__(self, trigger: str, base_date: date, demand_start: date | None, demand_end: date | None):
         self.trigger, self.base_date = trigger, base_date
@@ -66,9 +77,11 @@ class BatchRunner:
     def __enter__(self):
         BatchRun.__table__.create(engine, checkfirst=True)
         self.conn = engine.connect()
-        got = self.conn.execute(text("SELECT pg_try_advisory_lock(:k)"), {"k": LOCK_KEY}).scalar()
-        self.conn.commit()
+        got = self._try_lock()
         with engine.begin() as c:
+            if got:  # 잠금을 잡았으니 지금 도는 다른 배치는 없다. running 으로 남은 기록은 강제 종료된 것
+                c.execute(update(BatchRun).where(BatchRun.status == "running").values(
+                    status="failed", finished_at=now(), message="중간에 강제 종료됨 (시간 초과·취소)"))
             self.run_id = c.execute(
                 BatchRun.__table__.insert().returning(BatchRun.id),
                 {"started_at": now(), "status": "running" if got else "skipped", "trigger": self.trigger,
@@ -78,6 +91,25 @@ class BatchRunner:
             ).scalar_one()
         self.skipped = not got
         return self
+
+    def _try_lock(self) -> bool:
+        got = self.conn.execute(text("SELECT pg_try_advisory_lock(:k)"), {"k": LOCK_KEY}).scalar()
+        self.conn.commit()
+        return bool(got)
+
+    def _ensure_lock(self):
+        """교체 직전: 잠금 연결이 아직 살아 있는지 확인. 끊겼으면(잠금도 풀림) 새 연결로 다시 잠근다."""
+        try:
+            self.conn.execute(text("SELECT 1"))
+            self.conn.rollback()
+            return
+        except DBAPIError:
+            log.warning("잠금 연결이 끊겨 다시 연결합니다")
+            self.conn.invalidate()
+            self.conn.close()
+        self.conn = engine.connect()
+        if not self._try_lock():
+            raise BatchError("잠금 연결이 끊긴 사이 다른 배치가 잠금을 잡았습니다")
 
     def set_demand(self, start: date, end: date):
         self.demand_start, self.demand_end = start, end
@@ -95,11 +127,15 @@ class BatchRunner:
         if exc is not None and not self.skipped:
             self.fail(f"{exc_type.__name__}: {exc}")
         if self.conn is not None:
-            self.conn.rollback()  # 실패한 읽기가 남아 있으면 닫아야 잠금을 풀 수 있다
-            if not self.skipped:
-                self.conn.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": LOCK_KEY})
-                self.conn.commit()
-            self.conn.close()
+            try:
+                self.conn.rollback()  # 실패한 읽기가 남아 있으면 닫아야 잠금을 풀 수 있다
+                if not self.skipped:
+                    self.conn.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": LOCK_KEY})
+                    self.conn.commit()
+            except DBAPIError:  # 연결이 이미 끊겼으면 잠금도 이미 풀렸다
+                log.warning("잠금 연결이 이미 끊겨 있습니다")
+            finally:
+                self.conn.close()
         return False  # 예외는 그대로 올린다
 
     # ------------------------------------------------------------------ 데이터 준비
@@ -146,6 +182,7 @@ class BatchRunner:
 
     # ------------------------------------------------------------------ 교체
     def load(self) -> dict[str, int]:
+        self._ensure_lock()
         datasets, rows = self._gather()
         self._check(datasets, rows)
         self.conn.rollback()  # 검사용 읽기 트랜잭션을 닫고 교체 트랜잭션을 새로 연다
