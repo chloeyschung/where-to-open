@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>어디에 열까 · 데이터 분석</title>
+<style>
+:root {
+  color-scheme: light;
+  --surface-0: #f6f6f4; --surface-1: #fcfcfb; --border: #e3e2de; --grid: #ecebe7;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #7a7974;
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;
+  --accent: #2a78d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --surface-0: #121211; --surface-1: #1a1a19; --border: #33322f; --grid: #2a2a28;
+    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --accent: #3987e5;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0: #121211; --surface-1: #1a1a19; --border: #33322f; --grid: #2a2a28;
+  --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --accent: #3987e5;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--surface-0); color: var(--text-primary);
+  font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif; }
+main { max-width: 960px; margin: 0 auto; padding: 32px 16px 64px; }
+header h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: -0.02em; }
+header p { margin: 0; color: var(--text-secondary); }
+header p.back { margin: 0 0 10px; font-size: 14px; }
+header p.back a { color: var(--text-secondary); }
+section { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-top: 20px; }
+section h2 { font-size: 20px; margin: 0 0 4px; letter-spacing: -0.01em; }
+.lead { margin: 0 0 16px; color: var(--text-secondary); }
+.note { font-size: 13px; color: var(--text-muted); margin: 10px 0 0; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.tile { border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.tile .k { font-size: 13px; color: var(--text-secondary); }
+.tile .v { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.tile .s { font-size: 13px; color: var(--text-muted); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--text-secondary); font-weight: 600; font-size: 13px; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+a { color: var(--accent); }
+.scroll { overflow-x: auto; }
+.scroll table { min-width: 560px; }
+#source-table { min-width: 760px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
+.seg button { font: inherit; font-size: 14px; border: 0; background: transparent; color: var(--text-secondary); padding: 6px 14px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.legend { display: flex; gap: 16px; font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; flex-wrap: wrap; }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+svg text { fill: var(--text-secondary); font-size: 12px; }
+svg .val { fill: var(--text-primary); font-variant-numeric: tabular-nums; }
+svg .axis { stroke: var(--grid); }
+.tip { position: fixed; pointer-events: none; background: var(--text-primary); color: var(--surface-1); font-size: 13px;
+  padding: 6px 10px; border-radius: 6px; opacity: 0; transition: opacity .1s; z-index: 10; max-width: min(280px, calc(100vw - 16px)); }
+details { margin-top: 10px; font-size: 14px; }
+summary { cursor: pointer; color: var(--text-secondary); }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+h3 { font-size: 15px; margin: 18px 0 8px; }
+ul.rules { margin: 0; padding-left: 20px; }
+ul.rules li { margin: 6px 0; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="back"><a href="../index.html">← 어디에 열까 서비스로</a></p>
+    <h1>데이터 분석</h1>
+    <p>어디에 열까 · 서울 <span data-v="dongs"></span>개 행정동 · 카페·제과점·한식 · 기준일 <span data-v="base_date"></span></p>
+  </header>
+
+  <section id="overview">
+    <h2>한눈에</h2>
+    <p class="lead">공공데이터 네 가지 축(경쟁·안정성·자리·수요)을 행정동 코드 하나로 모았습니다. 가게 수는 기준일에 영업 중이던 가게 기준입니다.</p>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section id="sources">
+    <h2>데이터와 출처</h2>
+    <p class="lead">인허가 데이터 세 종류가 경쟁·안정성·자리 축의 바탕이고, 지하철 승하차가 수요 축입니다. 외부 Open API와 공개 파일을 함께 썼습니다.</p>
+    <div class="scroll"><table id="source-table"></table></div>
+  </section>
+
+  <section id="competition">
+    <h2>경쟁 — 같은 업종이 얼마나 빽빽한가</h2>
+    <p class="lead" id="comp-lead"></p>
+    <div class="seg" role="group" aria-label="업종" id="comp-seg"></div>
+    <div id="comp-chart"></div>
+    <p class="note">밀도 = 기준일 영업 중 점포 수 ÷ 행정동 면적(km²). 산·하천이 넓은 동은 낮게 나옵니다.</p>
+    <details><summary>표로 보기</summary><div class="scroll"><table id="comp-table"></table></div></details>
+  </section>
+
+  <section id="stability">
+    <h2>안정성 — 이 업종이 버티나</h2>
+    <p class="lead" id="stab-lead"></p>
+    <div class="legend"><span><i class="swatch" style="background:var(--series-1)"></i>교체율 (최근 1년 폐업 ÷ 1년 전 영업 중)</span><span><i class="swatch" style="background:var(--series-2)"></i>신규율 (최근 1년 신규 ÷ 1년 전 영업 중)</span></div>
+    <div id="stab-chart"></div>
+    <div class="tiles" id="stab-tiles" style="margin-top:16px"></div>
+    <p class="note" id="stab-note"></p>
+    <details><summary>표로 보기</summary><div class="scroll"><table id="stab-table"></table></div></details>
+  </section>
+
+  <section id="jari">
+    <h2>자리 — 이 자리는 얼마나 자주 바뀌었나</h2>
+    <p class="lead" id="jari-lead"></p>
+    <h3>단독 점포 자리별 최근 10년 새 가게 수</h3>
+    <div id="jari-chart"></div>
+    <details><summary>표로 보기</summary><div class="scroll"><table id="jari-table"></table></div></details>
+    <h3 id="demo-title"></h3>
+    <p class="note" id="demo-note" style="margin-top:0"></p>
+    <div id="demo-chart"></div>
+    <details><summary>가게 이력 표</summary><div class="scroll"><table id="demo-table"></table></div></details>
+  </section>
+
+  <section id="demand">
+    <h2>수요 — 사람이 얼마나, 언제 지나가나</h2>
+    <p class="lead" id="dem-lead"></p>
+    <h3>하루 평균 승하차 상위 10개 역 (일주일 기준)</h3>
+    <div id="dem-chart"></div>
+    <details><summary>표로 보기</summary><div class="scroll"><table id="dem-table"></table></div></details>
+    <div class="two">
+      <div><h3>아침에 들어오는 역 (오피스형)</h3><table id="dem-office"></table><p class="note">07~09시 하차 ÷ 승차. 평일 하루 승하차 <span data-v="min_weekday"></span>명 이상인 역 중.</p></div>
+      <div><h3>주말에 더 붐비는 역</h3><table id="dem-weekend"></table><p class="note">주말 하루 평균 ÷ 평일 하루 평균. 같은 조건.</p></div>
+    </div>
+  </section>
+
+  <section id="rules">
+    <h2>처리 규칙과 한계</h2>
+    <ul class="rules" id="rules-list"></ul>
+    <p class="note">축별 상세: <code>docs/common-rules.md</code>, <code>competition/</code>·<code>stability/</code>·<code>jari/</code>·<code>demand/</code> README</p>
+  </section>
+</main>
+<div class="tip" id="tip"></div>
+
+<script src="data.js"></script>
+<script>
+const D = window.ANALYSIS;
+const CATS = ["카페", "제과점", "한식"];
+const fmt = n => n == null ? "–" : Number(n).toLocaleString("ko-KR");
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const SVGNS = "http://www.w3.org/2000/svg";
+const el = (tag, attrs = {}, text) => { const e = document.createElementNS(SVGNS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; return e; };
+
+// 툴팁
+const tip = $("tip");
+// 말풍선: 마우스는 올리면, 터치는 누르면 보임. 화면 밖으로 나가지 않게 위치를 맞춤
+function showTip(e, html) {
+  tip.innerHTML = html; tip.style.opacity = 1;
+  const x = Math.min(e.clientX + 12, innerWidth - tip.offsetWidth - 8);
+  const y = e.clientY + 12 + tip.offsetHeight > innerHeight ? e.clientY - tip.offsetHeight - 12 : e.clientY + 12;
+  tip.style.left = Math.max(8, x) + "px"; tip.style.top = Math.max(8, y) + "px";
+}
+function hover(node, html) {
+  node.addEventListener("pointermove", e => { if (e.pointerType === "mouse") showTip(e, html); });
+  node.addEventListener("pointerleave", e => { if (e.pointerType === "mouse") tip.style.opacity = 0; });
+  node.addEventListener("click", e => { e.stopPropagation(); showTip(e, html); });
+}
+document.addEventListener("click", () => { tip.style.opacity = 0; });
+addEventListener("scroll", () => { tip.style.opacity = 0; }, { passive: true });
+function table(id, head, rows, numCols = []) {
+  $(id).innerHTML = "<thead><tr>" + head.map((h, i) => `<th${numCols.includes(i) ? ' class="num"' : ""}>${h}</th>`).join("") + "</tr></thead><tbody>" +
+    rows.map(r => "<tr>" + r.map((c, i) => `<td${numCols.includes(i) ? ' class="num"' : ""}>${c}</td>`).join("") + "</tr>").join("") + "</tbody>";
+}
+
+// 가로 막대: rows = [{label, value, color, tip, valueText}]
+function hbar(container, rows, { labelW = 170, max = null } = {}) {
+  const W = 720, rowH = 28, barH = 16, pad = 8, valW = 70;
+  const H = rows.length * rowH + pad;
+  const m = max ?? Math.max(...rows.map(r => r.value));
+  const plotW = W - labelW - valW;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
+  svg.appendChild(el("line", { x1: labelW, x2: labelW, y1: 0, y2: H - pad, class: "axis" }));
+  rows.forEach((r, i) => {
+    const y = i * rowH + (rowH - barH) / 2;
+    const has = r.value != null && !Number.isNaN(r.value);
+    const w = has ? Math.max(2, (r.value / m) * plotW) : 0;
+    const rad = Math.min(4, w / 2);
+    const g = el("g");
+    g.appendChild(el("text", { x: labelW - 8, y: y + barH / 2 + 4, "text-anchor": "end" }, r.label));
+    if (has) g.appendChild(el("path", { d: `M${labelW},${y} h${w - rad} a${rad},${rad} 0 0 1 ${rad},${rad} v${barH - 2 * rad} a${rad},${rad} 0 0 1 ${-rad},${rad} h${-(w - rad)} z`, fill: r.color }));
+    g.appendChild(el("text", { x: labelW + w + 6, y: y + barH / 2 + 4, class: "val" }, has ? (r.valueText ?? fmt(r.value)) : "자료 없음"));
+    const hit = el("rect", { x: 0, y: i * rowH, width: W, height: rowH, fill: "transparent" });
+    g.appendChild(hit); hover(hit, r.tip);
+    svg.appendChild(g);
+  });
+  container.innerHTML = ""; container.appendChild(svg);
+}
+
+// ---------------------------------------------------------------- 한눈에
+const O = D.overview;
+document.querySelectorAll('[data-v="base_date"]').forEach(e => e.textContent = O.base_date);
+document.querySelectorAll('[data-v="dongs"]').forEach(e => e.textContent = fmt(O.dongs));
+document.querySelectorAll('[data-v="min_weekday"]').forEach(e => e.textContent = fmt(D.demand.min_weekday_for_types));
+$("tiles").innerHTML = [
+  ["기준일 영업 중 가게", fmt(O.open_total) + "곳", CATS.map(k => `${k} ${fmt(O.open_by_category[k])}`).join(" · ")],
+  ["행정동", fmt(O.dongs) + "개", "모든 축을 행안부 행정동 코드로 연결"],
+  ["인허가 기록", fmt(O.permits_total) + "건", `세 업종 ${fmt(O.permits_in_categories)}건`],
+  ["최근 10년 영업한 자리", fmt(O.sites_10y) + "곳", "같은 지번 = 같은 자리"],
+  ["지하철역", fmt(O.stations) + "개", `${fmt(D.demand.dongs_with_station)}개 행정동에 역이 있음`],
+].map(([k, v, s]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join("");
+
+// ---------------------------------------------------------------- 출처
+table("source-table", ["데이터", "제공 기관", "수집 방식", "쓰는 곳"],
+  D.sources.map(s => [`<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.name)}</a>`, esc(s.org), esc(s.method), esc(s.axes)]));
+
+// ---------------------------------------------------------------- 경쟁
+let compCat = "카페";
+function drawComp() {
+  const rows = D.competition[compCat];
+  $("comp-lead").textContent = `${compCat} 밀도가 가장 높은 동네는 ${rows[0].dong}(1km²당 ${rows[0].density}곳)입니다. 상위 10개 동네를 보여 줍니다.`;
+  hbar($("comp-chart"), rows.map(r => ({ label: r.dong, value: r.density, color: "var(--series-1)", valueText: r.density.toFixed(1),
+    tip: `${esc(r.dong)}<br>${compCat} ${fmt(r.count)}곳 · 1km²당 ${r.density}곳` })));
+  table("comp-table", ["동네", "점포 수", "밀도(개/km²)"], rows.map(r => [esc(r.dong), fmt(r.count), r.density.toFixed(1)]), [1, 2]);
+  document.querySelectorAll("#comp-seg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.cat === compCat));
+}
+$("comp-seg").innerHTML = CATS.map(k => `<button type="button" data-cat="${k}">${k}</button>`).join("");
+$("comp-seg").addEventListener("click", e => { if (e.target.dataset.cat) { compCat = e.target.dataset.cat; drawComp(); } });
+drawComp();
+
+// ---------------------------------------------------------------- 안정성
+const S = D.stability;
+const shrinking = S.filter(s => s.closed_1y > s.new_1y).map(s => s.category);
+const growing = S.filter(s => s.new_1y > s.closed_1y).map(s => s.category);
+const eun = w => ((w.charCodeAt(w.length - 1) - 0xac00) % 28 ? "은" : "는");
+const topic = list => list.join("·") + eun(list[list.length - 1]);
+$("stab-lead").textContent = "최근 1년 동안 " + [
+  shrinking.length ? `${topic(shrinking)} 폐업이 신규보다 많았고` : "",
+  growing.length ? `${topic(growing)} 신규가 더 많았습니다` : "",
+].filter(Boolean).join(", ") + ".";
+(function () {
+  const rows = [];
+  S.forEach(s => {
+    rows.push({ label: `${s.category} 교체율`, value: s.turnover, color: "var(--series-1)", valueText: s.turnover + "%",
+      tip: `${s.category} 교체율 ${s.turnover}%<br>최근 1년 폐업 ${fmt(s.closed_1y)}곳` });
+    rows.push({ label: `${s.category} 신규율`, value: s.new_rate, color: "var(--series-2)", valueText: s.new_rate + "%",
+      tip: `${s.category} 신규율 ${s.new_rate}%<br>최근 1년 신규 ${fmt(s.new_1y)}곳` });
+  });
+  hbar($("stab-chart"), rows, { labelW: 120 });
+})();
+$("stab-tiles").innerHTML = S.map(s => `<div class="tile"><div class="k">${s.category} 3년 생존율</div><div class="v">${s.survival_3y}%</div><div class="s">3~8년 전 개업한 가게 중 3년 넘게 영업</div></div>`).join("");
+const share = D.stability_dong_share;
+$("stab-note").textContent = `동네 값은 계산에 쓰는 가게가 20곳 이상일 때만 씁니다. 교체율 기준 동네 값이 있는 행정동: ` +
+  CATS.map(k => `${k} ${share[k].turnover_dong}곳`).join(", ") + ` (나머지는 구 평균). 생존율은 인허가 단위라 통계청 사업자 단위 통계(숙박·음식점업 3년 생존율 30.3%, 「2015년 기업생멸행정통계」)보다 높게 나옵니다.`;
+table("stab-table", ["업종", "기준일 영업 중", "최근 1년 폐업", "최근 1년 신규", "교체율", "신규율", "3년 생존율"],
+  S.map(s => [s.category, fmt(s.open), fmt(s.closed_1y), fmt(s.new_1y), s.turnover + "%", s.new_rate + "%", s.survival_3y + "%"]), [1, 2, 3, 4, 5, 6]);
+
+// ---------------------------------------------------------------- 자리
+const J = D.jari;
+$("jari-lead").textContent = `최근 10년 동안 가게가 있었던 자리 ${fmt(J.sites_10y)}곳 중 한 번에 한 가게만 있던 단독 자리는 ${fmt(J.single_sites)}곳입니다. ` +
+  `단독 자리는 10년에 평균 ${J.single_avg}번 새 가게가 들어왔고, 4번 이상 바뀐 자리는 ${fmt(J.single_4plus)}곳입니다.`;
+hbar($("jari-chart"), J.distribution.map(d => ({ label: `새 가게 ${d.label}`, value: d.sites, color: "var(--series-1)",
+  tip: `10년 동안 새 가게 ${d.label}<br>${fmt(d.sites)}곳 (${(d.sites / J.single_sites * 100).toFixed(1)}%)` })), { labelW: 120 });
+table("jari-table", ["10년 새 가게 수", "자리 수", "비율"], J.distribution.map(d => [d.label, fmt(d.sites), (d.sites / J.single_sites * 100).toFixed(1) + "%"]), [1, 2]);
+
+const demo = J.demo;
+$("demo-title").textContent = `예: ${demo.site} — 10년 동안 ${demo.permits_10y}번 바뀐 자리`;
+const demoRank = J.top_per_slot.findIndex(t => t.site === demo.site) + 1;
+$("demo-note").textContent = `${demo.dong} 단독 자리 평균은 ${demo.dong_avg_single}번입니다.` + (demoRank ? ` 한 칸당 교체 횟수로 서울 단독 자리 중 ${demoRank}위입니다.` : "") + " 막대 하나가 가게 하나입니다.";
+(function () {
+  const end = new Date(O.base_date), start = new Date(end); start.setFullYear(end.getFullYear() - 10);
+  const W = 720, labelW = 170, rowH = 24, barH = 12, top = 22;
+  const H = top + demo.history.length * rowH + 4;
+  const x = d => labelW + (Math.max(start, Math.min(end, d)) - start) / (end - start) * (W - labelW - 10);
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
+  for (let y = start.getFullYear() + 1; y <= end.getFullYear(); y++) {
+    const xx = x(new Date(`${y}-01-01`));
+    svg.appendChild(el("line", { x1: xx, x2: xx, y1: top - 4, y2: H, class: "axis" }));
+    svg.appendChild(el("text", { x: xx, y: 12, "text-anchor": "middle" }, String(y)));
+  }
+  demo.history.forEach((h, i) => {
+    const y = top + i * rowH + (rowH - barH) / 2;
+    const a = x(new Date(h.opened)), b = x(h.closed ? new Date(h.closed) : end);
+    const g = el("g");
+    g.appendChild(el("text", { x: labelW - 8, y: y + barH / 2 + 4, "text-anchor": "end" }, h.name));
+    g.appendChild(el("rect", { x: a, y, width: Math.max(3, b - a), height: barH, rx: 3, fill: h.closed ? "var(--series-1)" : "var(--series-3)" }));
+    const hit = el("rect", { x: 0, y: top + i * rowH, width: W, height: rowH, fill: "transparent" });
+    g.appendChild(hit);
+    hover(hit, `${esc(h.name)} (${esc(h.uptae)})<br>${h.opened} ~ ${h.closed || "영업 중"} · ${h.months}개월`);
+    svg.appendChild(g);
+  });
+  $("demo-chart").innerHTML = ""; $("demo-chart").appendChild(svg);
+})();
+table("demo-table", ["가게", "업태", "개업", "폐업", "영업 개월"],
+  demo.history.map(h => [esc(h.name), esc(h.uptae), h.opened, h.closed || "영업 중", fmt(h.months)]), [4]);
+
+// ---------------------------------------------------------------- 수요
+const M = D.demand;
+$("dem-lead").textContent = `서울 지하철역 ${fmt(M.stations)}개를 행정동에 연결했습니다. 하루 평균 승하차(승차+하차)가 가장 많은 역은 ${M.top[0].station}(${fmt(M.top[0].weekly)}명)입니다. 승하차는 한 사람이 타고 내리면 두 번 셉니다.`;
+hbar($("dem-chart"), M.top.map(t => ({ label: t.station, value: t.weekly, color: "var(--series-1)",
+  tip: `${esc(t.station)} (${esc(t.where)})<br>평일 ${fmt(t.weekday)} · 주말 ${fmt(t.weekend)}` })));
+table("dem-table", ["역", "행정동", "일주일 기준", "평일", "주말"], M.top.map(t => [esc(t.station), esc(t.where), fmt(t.weekly), fmt(t.weekday), fmt(t.weekend)]), [2, 3, 4]);
+table("dem-office", ["역", "행정동", "하차÷승차"], M.office.map(t => [esc(t.station), esc(t.where), t.ratio]), [2]);
+table("dem-weekend", ["역", "행정동", "주말÷평일"], M.weekend.map(t => [esc(t.station), esc(t.where), t.ratio]), [2]);
+
+// ---------------------------------------------------------------- 규칙과 한계
+$("rules-list").innerHTML = [
+  `인허가 데이터를 쓰는 경쟁·안정성·자리 축은 같은 공용 파일(${fmt(O.permits_total)}건)을 쓰고, 네 축 모두 같은 기준일(${O.base_date})을 씁니다. 기준일 뒤에 난 인허가는 빼고, 기준일 뒤에 닫은 가게는 기준일에 영업 중으로 셉니다.`,
+  `백화점·행사 팝업(90일 안에 닫은 임시 매장) ${fmt(O.popups_removed)}곳(세 업종 ${fmt(O.popups_removed_in_categories)}곳)과 폐업일이 빈 폐업 기록 ${fmt(O.close_date_missing)}곳은 뺐습니다.`,
+  `가게와 역 모두 좌표로 행정동을 붙였습니다. 좌표가 없는 가게는 도로명주소 API로 찾은 주소로 채웠습니다. 그래도 못 찾은 영업 중 가게 ${fmt(O.open_no_dong)}곳(대부분 지금은 주소 검색이 안 되는 지번의 오래된 기록)은 서울 합계에만 들어가고 동네 값에서는 빠집니다.`,
+  "자리는 같은 지번입니다. 같은 건물의 층·호는 구분하지 않고, 주인만 바뀐 같은 상호는 한 가게로 봅니다.",
+  "폐업 신고 없이 문을 닫은 가게는 영업 중으로 남습니다. 상가정보와 대조하면 2005년 이전 개업한 영업 중 기록의 약 4%로 추정됩니다(jari/README).",
+  "지하철 수요는 역이 있는 동네만 알 수 있고, 공휴일은 평일로 셉니다.",
+].map(t => `<li>${esc(t)}</li>`).join("");
+</script>
+</body>
+</html>

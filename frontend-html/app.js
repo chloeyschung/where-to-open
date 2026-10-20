@@ -218,10 +218,10 @@ async function initialize() {
   }
 }
 
-$$('.nav-item').forEach((button) => button.addEventListener('click', () => {
+$$('.nav-item[data-view]').forEach((button) => button.addEventListener('click', () => {
   const view = button.dataset.view;
   state.activeView = view;
-  $$('.nav-item').forEach((item) => item.classList.toggle('is-active', item === button));
+  $$('.nav-item[data-view]').forEach((item) => item.classList.toggle('is-active', item === button));
   $$('.page-view').forEach((page) => {
     const active = page.id === `view-${view}`;
     page.hidden = !active;
