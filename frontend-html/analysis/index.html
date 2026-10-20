@@ -61,7 +61,7 @@ svg text { fill: var(--text-secondary); font-size: 12px; }
 svg .val { fill: var(--text-primary); font-variant-numeric: tabular-nums; }
 svg .axis { stroke: var(--grid); }
 .tip { position: fixed; pointer-events: none; background: var(--text-primary); color: var(--surface-1); font-size: 13px;
-  padding: 6px 10px; border-radius: 6px; opacity: 0; transition: opacity .1s; z-index: 10; white-space: nowrap; }
+  padding: 6px 10px; border-radius: 6px; opacity: 0; transition: opacity .1s; z-index: 10; max-width: min(280px, calc(100vw - 16px)); }
 details { margin-top: 10px; font-size: 14px; }
 summary { cursor: pointer; color: var(--text-secondary); }
 .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
@@ -153,10 +153,20 @@ const el = (tag, attrs = {}, text) => { const e = document.createElementNS(SVGNS
 
 // 툴팁
 const tip = $("tip");
-function hover(node, html) {
-  node.addEventListener("pointermove", e => { tip.innerHTML = html; tip.style.opacity = 1; tip.style.left = (e.clientX + 12) + "px"; tip.style.top = (e.clientY + 12) + "px"; });
-  node.addEventListener("pointerleave", () => { tip.style.opacity = 0; });
+// 말풍선: 마우스는 올리면, 터치는 누르면 보임. 화면 밖으로 나가지 않게 위치를 맞춤
+function showTip(e, html) {
+  tip.innerHTML = html; tip.style.opacity = 1;
+  const x = Math.min(e.clientX + 12, innerWidth - tip.offsetWidth - 8);
+  const y = e.clientY + 12 + tip.offsetHeight > innerHeight ? e.clientY - tip.offsetHeight - 12 : e.clientY + 12;
+  tip.style.left = Math.max(8, x) + "px"; tip.style.top = Math.max(8, y) + "px";
 }
+function hover(node, html) {
+  node.addEventListener("pointermove", e => { if (e.pointerType === "mouse") showTip(e, html); });
+  node.addEventListener("pointerleave", e => { if (e.pointerType === "mouse") tip.style.opacity = 0; });
+  node.addEventListener("click", e => { e.stopPropagation(); showTip(e, html); });
+}
+document.addEventListener("click", () => { tip.style.opacity = 0; });
+addEventListener("scroll", () => { tip.style.opacity = 0; }, { passive: true });
 function table(id, head, rows, numCols = []) {
   $(id).innerHTML = "<thead><tr>" + head.map((h, i) => `<th${numCols.includes(i) ? ' class="num"' : ""}>${h}</th>`).join("") + "</tr></thead><tbody>" +
     rows.map(r => "<tr>" + r.map((c, i) => `<td${numCols.includes(i) ? ' class="num"' : ""}>${c}</td>`).join("") + "</tr>").join("") + "</tbody>";

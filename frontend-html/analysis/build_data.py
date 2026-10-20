@@ -63,7 +63,7 @@ assert (check.values == open_by_cat.values).all(), (check, open_by_cat)
 # ---------------------------------------------------------------- 경쟁: 업종별 밀도 상위 동네
 competition = {
     k: [{"dong": f"{row['gu']} {row['adm_nm']}", "density": r(row[f"{k}_밀도(개/km2)"]), "count": int(row[k])}
-        for _, row in comp.sort_values(f"{k}_밀도(개/km2)", ascending=False).head(10).iterrows()]
+        for _, row in comp.dropna(subset=[f"{k}_밀도(개/km2)"]).sort_values(f"{k}_밀도(개/km2)", ascending=False).head(10).iterrows()]
     for k in CATS
 }
 
