@@ -151,8 +151,8 @@ function renderComparison(items) {
   ], items.length);
   const site = makeAxis('자리 · 같은 지번의 최근 10년', 'site', [
     { label: '자리 수', cells: items.map((item) => item.site ? metricCell(`${formatNumber(item.site.site_count)}곳`, '10년 이력 보유 주소') : metricCell('자료 없음')) },
-    { label: '단독 자리 평균 교체', cells: items.map((item) => item.site ? metricCell(`${formatNumber(item.site.avg_single_permits_10y, 2)}회`, '10년 인허가 수') : metricCell('자료 없음')) },
-    { label: '한 칸당 평균 교체', cells: items.map((item) => item.site ? metricCell(`${formatNumber(item.site.avg_per_slot_10y, 2)}회`, '10년 기준') : metricCell('자료 없음')) },
+    { label: '단독 자리 10년 새 가게', cells: items.map((item) => item.site ? metricCell(`${formatNumber(item.site.avg_single_permits_10y, 2)}곳`, '가게 한 곳짜리 자리 평균') : metricCell('자료 없음')) },
+    { label: '한 칸당 평균 교체', cells: items.map((item) => item.site ? metricCell(`${formatNumber(item.site.avg_per_slot_10y, 2)}회`, '10년 새 가게 ÷ 동시 영업 수') : metricCell('자료 없음')) },
   ], items.length);
   const demand = makeAxis('수요 · 오전, 저녁, 밤', 'demand', [
     { label: '연결 역별 승하차', caption: '하루 평균 · 최대 3개 역', cells: items.map((item) => `<div class="metric-cell">${renderDemand(item)}</div>`) },
@@ -169,7 +169,7 @@ function renderSite(site, dongName = '') {
     <article class="site-card">
       <header class="site-card-top"><div><p class="eyebrow">${escapeHtml(site.gu)} · ${escapeHtml(dongName || site.adm_cd || '행정동 미상')}</p><h2>${escapeHtml(site.site_key)}</h2><p>지번 기준 · 층·호 구분 없음</p>${dongLine}</div><span class="site-id-badge">SITE ${formatNumber(site.id)}</span></header>
       <div class="site-metrics">
-        <div class="site-metric"><span class="site-metric-label">10년 인허가</span><strong>${formatNumber(site.permits_10y)}건</strong>${site.max_concurrent === 1 && site.dong_avg_single != null ? `<small class="metric-sub">동 평균 ${formatNumber(site.dong_avg_single, 2)}건 (가게 한 곳짜리 자리)</small>` : ''}</div>
+        <div class="site-metric"><span class="site-metric-label">10년 새 가게</span><strong>${formatNumber(site.permits_10y)}곳</strong>${site.max_concurrent === 1 && site.dong_avg_single != null ? `<small class="metric-sub">동 평균 ${formatNumber(site.dong_avg_single, 2)}곳 (가게 한 곳짜리 자리)</small>` : ''}</div>
         <div class="site-metric"><span class="site-metric-label">한 칸당 교체</span><strong>${formatNumber(site.per_slot_10y, 2)}회</strong>${site.max_concurrent > 1 && site.dong_avg_per_slot != null ? `<small class="metric-sub">동 평균 ${formatNumber(site.dong_avg_per_slot, 2)}회</small>` : ''}</div>
         <div class="site-metric"><span class="site-metric-label">현재 영업</span><strong>${formatNumber(site.open_now)}곳</strong></div>
         <div class="site-metric"><span class="site-metric-label">폐업 업소 평균 영업</span><strong>${site.avg_months_closed == null ? '자료 없음' : `${formatNumber(site.avg_months_closed, 1)}개월`}</strong></div>
@@ -270,7 +270,7 @@ function renderAddressResults(response) {
       <li><button class="address-item" type="button" data-index="${index}">
         <strong>${escapeHtml(item.jibun_addr)}</strong>
         <span>${escapeHtml(item.road_addr)}</span>
-        <small>${escapeHtml(item.dong ? `${item.gu} ${item.dong}` : '행정동 미상')} · ${item.site_id ? `최근 10년 가게 ${formatNumber(item.permits_10y)}곳` : '최근 10년 가게 기록 없음'}</small>
+        <small>${escapeHtml(item.dong ? `${item.gu} ${item.dong}` : '행정동 미상')} · ${item.site_id ? `10년 새 가게 ${formatNumber(item.permits_10y)}곳` : '최근 10년 가게 기록 없음'}</small>
       </button></li>`).join('')}</ul>`;
   $$('.address-item', host).forEach((button) => button.addEventListener('click', () => {
     $$('.address-item', host).forEach((other) => other.classList.toggle('is-active', other === button));
@@ -281,7 +281,7 @@ function renderAddressResults(response) {
 async function showAddress(item) {
   state.lastAddress = item;
   if (!item.site_id) {
-    $('#site-result').innerHTML = `<div class="empty-state slim-empty"><p class="eyebrow">${escapeHtml(item.dong ? `${item.gu} · ${item.dong}` : item.gu)}</p><h2>${escapeHtml(item.jibun_addr)}</h2><p>이 지번에는 최근 10년 일반음식점·휴게음식점·제과점 인허가 기록이 없습니다.</p></div>`;
+    $('#site-result').innerHTML = `<div class="empty-state slim-empty"><p class="eyebrow">${escapeHtml(item.dong ? `${item.gu} · ${item.dong}` : item.gu)}</p><h2>${escapeHtml(item.jibun_addr)}</h2><p>이 지번에는 최근 10년 동안 영업한 일반음식점·휴게음식점·제과점이 없습니다.</p></div>`;
     return;
   }
   $('#site-result').innerHTML = '<div class="loading-state">자리 이력을 불러오는 중...</div>';

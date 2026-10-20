@@ -12,7 +12,7 @@
         "seoul_rank": 18,           서울 427개 동 중 18번째로 빽빽함 (상위 약 4%)
         "seoul_dong_count": 427
       },
-      "stability": null, "site": null, "demand": null                                           ← 아직 데이터 없음
+      "stability": {...}, "site": {...}, "demand": {...}                                       ← 안정성·자리·수요 축
     }
 """
 from datetime import date
@@ -64,60 +64,65 @@ class CompetitionSection(BaseModel):
 class DongReportResponse(BaseModel):
     """동 리포트: 한 행정동 × 한 업종에 대한 네 축(경쟁·안정성·자리·수요) 결과.
 
-    축 값이 null이면 "아직 그 축 데이터가 없다"는 뜻이다 (0이나 나쁨이 아님). 화면은 '준비 중'으로 보여 준다.
+    축 값이 null이면 그 동에 해당 자료가 없다는 뜻이다 (0이나 나쁨이 아님).
+    수요는 행정동 안에 지하철역이 없으면, 자리는 최근 10년 가게가 있었던 지번이 없으면 null.
     """
 
     dong: DongResponse = Field(description="요청한 행정동")
     category: CategoryResponse = Field(description="요청한 업종")
     base_date: date = Field(description="기준일. 모든 지표는 이 날 기준 (공통 규칙 2)", examples=["2026-09-30"])
-    competition: CompetitionSection | None = Field(description="경쟁 축. 이 동·업종 데이터가 적재되지 않았으면 null")
-    stability: "StabilitySection | None" = Field(description="3년 생존율·교체율·신규율. 값이 없으면 null")
-    site: "SiteSection | None" = Field(description="행정동 내 자리 이력의 10년 기준 요약")
-    demand: "DemandSection | None" = Field(description="시간대별 승하차·생활인구")
+    competition: CompetitionSection | None = Field(description="경쟁 축. 기준일 영업 중 가게 수와 밀도, 구·서울 비교")
+    stability: "StabilitySection | None" = Field(description="안정성 축. 3년 생존율·교체율·신규율")
+    site: "SiteSection | None" = Field(description="자리 축. 행정동 안 자리(지번)들의 최근 10년 요약")
+    demand: "DemandSection | None" = Field(description="수요 축. 행정동 안 지하철역별 하루 평균 승하차 (2024-09~2026-09). 역이 없으면 null")
 
 
 class StabilitySection(BaseModel):
-    survival_3y: float | None = Field(description="3년 생존율 (0~1 비율, 구 단위 대체값일 수 있음)")
-    turnover_rate: float | None = Field(description="최근 1년 교체율 (0~1 비율)")
-    new_rate: float | None = Field(description="최근 1년 신규율 (0~1 비율)")
+    survival_3y: float | None = Field(description="3년 생존율 (0~1). 3~8년 전 개업한 가게 중 3년 이상 영업했거나 영업 중인 비율. survival_basis가 gu면 구 값")
+    turnover_rate: float | None = Field(description="교체율 (0~1) = 최근 1년 폐업 ÷ 1년 전 영업 중. turnover_basis가 gu면 구 값")
+    new_rate: float | None = Field(description="신규율 (0~1) = 최근 1년 신규 ÷ 1년 전 영업 중. new_rate_basis가 gu면 구 값")
     turnover_basis: str = Field(description="교체율 기준: dong / gu / none")
     new_rate_basis: str = Field(description="신규율 기준: dong / gu / none")
     survival_basis: str = Field(description="생존율 기준: dong / gu / none")
-    flow_type: str | None = Field(description="신규율·교체율 조합에 따른 설명 유형")
-    cohort_3y: int = Field(description="3년 생존율 계산 대상 업소 수")
-    new_1y: int = Field(description="최근 1년 신규 인허가 수")
-    closed_1y: int = Field(description="최근 1년 폐업 수")
+    flow_type: str | None = Field(description="예비 항목. 지금은 항상 null")
+    cohort_3y: int = Field(description="이 동의 3년 생존율 계산 대상 가게 수 (3~8년 전 개업)")
+    new_1y: int = Field(description="이 동의 최근 1년 신규 인허가 수")
+    closed_1y: int = Field(description="이 동의 최근 1년 폐업 수")
 
 
 class SiteSection(BaseModel):
     site_count: int = Field(description="최근 10년 이력이 있는 행정동 내 주소 수")
-    avg_single_permits_10y: float | None = Field(description="단독 점포 자리의 10년 평균 인허가 수")
-    avg_per_slot_10y: float | None = Field(description="한 칸당 10년 평균 교체 횟수")
+    avg_single_permits_10y: float | None = Field(description="가게 한 곳짜리 자리의 최근 10년 평균 새 가게 수 (주인만 바뀐 건 합침)")
+    avg_per_slot_10y: float | None = Field(description="전체 자리의 한 칸당 최근 10년 평균 교체 횟수 (새 가게 수 ÷ 최대 동시 영업 수)")
 
 
 class DemandHour(BaseModel):
+    """예비 항목 (행정동 × 시간대). 지금은 적재한 자료가 없어 항상 빈 목록."""
+
     hour: int
     subway_riders: float | None
     living_population: float | None
 
 
 class StationDemand(BaseModel):
-    station_name: str
-    gu: str
-    weekday_daily_riders: float
-    weekend_daily_riders: float
-    weekly_daily_riders: float
-    weekend_weekday_ratio: float
-    morning_alighting: float
-    morning_boarding: float
-    office_density: float
-    evening_alighting: float
-    night_boarding: float
+    """지하철역 하나. 인원은 모두 하루 평균(명), 승차와 하차를 더한 값이라 유동인구와 다르다."""
+
+    station_name: str = Field(description="역 이름. 환승역은 한 역으로 합침")
+    gu: str = Field(description="자치구")
+    weekday_daily_riders: float = Field(description="평일 하루 평균 승하차")
+    weekend_daily_riders: float = Field(description="주말(토·일) 하루 평균 승하차")
+    weekly_daily_riders: float = Field(description="일주일 기준 하루 평균 = (평일×5 + 주말×2) ÷ 7")
+    weekend_weekday_ratio: float = Field(description="주말 ÷ 평일. 1보다 크면 주말에 더 붐빔")
+    morning_alighting: float = Field(description="07~09시 하차")
+    morning_boarding: float = Field(description="07~09시 승차")
+    office_density: float = Field(description="아침 하차 ÷ 아침 승차. 1보다 크면 아침에 들어오는 사람이 많은 업무지구")
+    evening_alighting: float = Field(description="18~20시 하차")
+    night_boarding: float = Field(description="22~23시 승차")
 
 
 class DemandSection(BaseModel):
-    hourly: list[DemandHour]
-    stations: list[StationDemand]
+    hourly: list[DemandHour] = Field(description="예비 항목. 지금은 항상 빈 목록")
+    stations: list[StationDemand] = Field(description="행정동 안 지하철역. 일주일 기준 승하차가 많은 순")
 
 
 class DongComparisonResponse(BaseModel):

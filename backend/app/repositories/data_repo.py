@@ -6,7 +6,6 @@ from app.models import (
     CompetitionStat,
     DemandStat,
     Dong,
-    MetaSource,
     Site,
     SiteStore,
     StabilityAggregateStat,
@@ -22,9 +21,6 @@ from app.models import (
 class DataRepository:
     def __init__(self, db: Session):
         self.db = db
-
-    def sources(self) -> list[MetaSource]:
-        return list(self.db.scalars(select(MetaSource).order_by(MetaSource.key)))
 
     def record_counts(self) -> list[tuple[str, str, int]]:
         datasets = [

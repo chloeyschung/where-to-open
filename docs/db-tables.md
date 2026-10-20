@@ -91,7 +91,7 @@ erDiagram
 | 수요 | `subway_station_stat` | 지하철역 1곳 | 306 | `demand/subway_demand_202409_202609.csv` | 리포트 |
 | 자리 | `site` | 지번 1곳 | 109,943 | `data/seoul/sites.csv` (드라이브) | 리포트, 자리 상세, 주소 검색 |
 | | `site_store` | 그 지번에 있었던 가게 1곳 | 576,785 | `data/seoul/site_history.csv` (드라이브) | 자리 상세 |
-| 메타 | `meta_source` | 데이터 출처 1개 | 3 | `load_data.py` 안에서 정의 | 데이터 설명 |
+| 메타 | `meta_source` | 데이터 출처 1개 | 3 | `load_data.py` 안에서 정의 | 없음 (출처 목록은 API 코드에 있음) |
 | 보조 | `store_dong` | 가게 1곳 | 28,895 | `jari/dong_fill.csv` | 없음 (확인용) |
 | | `uptae_count` | 원본 × 업태 | 64 | `competition/uptae_counts.csv` | 없음 (확인용) |
 | 예비 | `store`, `yearly_stat`, `demand_stat` | | 0 | 적재 안 함 | `demand_stat`만 리포트가 조회 (항상 빈 값) |
@@ -228,7 +228,7 @@ erDiagram
 | `axis` | varchar(40) | | 쓰는 축 |
 | `fetched_at` | date | | 내려받은 날 (지금은 비어 있음) |
 
-지금은 3개(인허가, 지하철 일별 승하차, 행정동 경계)만 들어 있습니다. 시간대별 승하차 Open API, 역 좌표, 도로명주소 API는 아직 없습니다.
+3개(인허가, 지하철 일별 승하차, 행정동 경계)만 들어 있습니다. API(`GET /api/data/overview`)는 이 표 대신 `backend/app/services/data_service.py`에 둔 출처 9개를 줍니다(데이터 분석 페이지와 같은 목록).
 
 ### store_dong, uptae_count · 확인용 보조 표
 

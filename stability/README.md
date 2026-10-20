@@ -56,7 +56,7 @@ python stability/build_stability.py --base-date 2026-09-30 --min-n 20   # 옵션
 - 행정동별 영업 중 업소 수가 경쟁 축 `competition_by_dong.csv`와 427동 × 3업종 모두 일치합니다.
 - 동네 값으로 나오는 비율 (나머지는 구 평균): 교체율·신규율 — 한식 398 / 카페 286 / 제과점 41개 동, 3년 생존율 — 한식 332 / 카페 243 / 제과점 25개 동. 제과점은 대부분 구 평균입니다.
 
-보조 결과 `stability/out/yearly_by_dong.csv`(행정동 × 업종 × 연도별 신규·폐업·순증, 최근 10년)는 데이터 분석 페이지용이고 커밋하지 않습니다.
+보조 결과 `stability/out/yearly_by_dong.csv`(행정동 × 업종 × 연도별 신규·폐업·순증, 최근 10년)는 커밋하지 않습니다. 지금 데이터 분석 페이지와 DB에는 쓰지 않습니다.
 
 ### stability_by_dong.csv 컬럼
 

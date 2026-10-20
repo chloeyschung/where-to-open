@@ -7,7 +7,7 @@ from app.core.database import Base
 
 
 class Store(Base):
-    """공용 파일 permits_base.csv 중 카페·제과점·한식. 반경 내 동종 업소 검색용."""
+    """공용 파일 permits_base.csv 중 카페·제과점·한식. 예비 표 (지금은 적재하지 않음)."""
 
     __tablename__ = "store"
     __table_args__ = (Index("ix_store_category_open_latlon", "category_code", "is_open_asof", "lat", "lon"),)

@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Path, Query
 
 from app.core.database import DbSession
 from app.schemas.common import ErrorResponse
@@ -21,7 +21,7 @@ def get_service(db: DbSession) -> SiteService:
     summary="자리의 10년 지표·업소 이력",
 )
 def get_site(
-    site_id: int,
+    site_id: Annotated[int, Path(description="자리 id. 주소 검색(/api/address/search) 결과의 site_id")],
     category: Annotated[str, Query(description="업종 코드 cafe / bakery / korean")],
     service: Annotated[SiteService, Depends(get_service)],
 ):
