@@ -8,13 +8,14 @@
   python frontend-html/analysis/build_data.py
 """
 import json
+import os
 from pathlib import Path
 
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = Path(__file__).with_name("data.js")  # 파일로 바로 열어도 되게 window.ANALYSIS 로 내보냄
-BASE = "2026-09-30"
+BASE = os.environ.get("WTO_BASE_DATE", "2026-09-30")  # 월 배치가 지난달 말일을 넘겨준다
 CATS = ["카페", "제과점", "한식"]
 MIN_WEEKDAY = 20000  # 오피스형·주말형 역을 고를 때 평일 하루 승하차 최소값
 

@@ -86,7 +86,7 @@ class DemandStat(Base):
 
 
 class SubwayStationStat(Base):
-    """역별 하루 평균 수요 집계 (demand/subway_demand_202409_202609.csv)."""
+    """역별 하루 평균 수요 집계 (demand/subway_demand_202409_202609.csv, 월 배치는 최근 25개월로 다시 계산)."""
 
     __tablename__ = "subway_station_stat"
 

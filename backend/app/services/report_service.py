@@ -1,6 +1,5 @@
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
 from app.repositories.site_repo import SiteRepository
 from app.repositories.stat_repo import CompetitionRepository, StatRepository
 from app.schemas.report import (
@@ -15,12 +14,14 @@ from app.schemas.report import (
 )
 from app.services.category_service import CategoryService
 from app.services.dong_service import DongService
+from app.services.freshness import current_base_date
 
 
 class ReportService:
     """한 동 × 한 업종의 네 축(경쟁·안정성·자리·수요)을 모은다. 그 동에 자료가 없는 축은 None."""
 
     def __init__(self, db: Session):
+        self.db = db
         self.dongs = DongService(db)
         self.categories = CategoryService(db)
         self.competition = CompetitionRepository(db)
@@ -33,7 +34,7 @@ class ReportService:
         return DongReportResponse(
             dong=dong,
             category=category,
-            base_date=get_settings().base_date,
+            base_date=current_base_date(self.db),
             competition=self._competition(adm_cd, dong.gu, category.code),
             stability=self._stability(adm_cd, category.code),
             site=self._site(adm_cd),
@@ -44,7 +45,7 @@ class ReportService:
         reports = [self.dong_report(adm_cd, category_code) for adm_cd in adm_cds]
         return DongComparisonResponse(
             category=reports[0].category,
-            base_date=get_settings().base_date,
+            base_date=reports[0].base_date,
             items=reports,
         )
 

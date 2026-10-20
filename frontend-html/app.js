@@ -115,7 +115,7 @@ function metricCell(main, sub = '', bar = null) {
 // 비교 지표 설명. 숫자의 정의와 읽는 법 (docs/common-rules.md, docs/db-tables.md 기준)
 const HELP = {
   competition: '같은 업종 가게가 동네에 얼마나 빽빽한지 봅니다. 높을수록 경쟁이 셉니다. 다만 사람이 많이 모이는 곳이라 높을 수도 있으니 수요와 같이 보세요.',
-  density: '기준일(2026-09-30)에 영업 중인 이 업종 가게 수 ÷ 행정동 면적(km²). 크기가 다른 동네끼리 비교하려고 면적으로 나눴습니다. 막대는 지금 비교하는 동네 중 가장 높은 값을 끝으로 한 길이입니다.',
+  density: '기준일(화면 위에 표시)에 영업 중인 이 업종 가게 수 ÷ 행정동 면적(km²). 크기가 다른 동네끼리 비교하려고 면적으로 나눴습니다. 막대는 지금 비교하는 동네 중 가장 높은 값을 끝으로 한 길이입니다.',
   rank: '서울 427개 행정동 중 이 업종 밀도 순위입니다. 1위가 가장 빽빽합니다. 서울 평균은 427개 동의 밀도를 단순 평균한 값이라, 평균보다 크면 보통 동네보다 경쟁이 센 편입니다.',
   stability: '이 업종 가게가 이 동네에서 오래 버티는지, 얼마나 자주 바뀌는지 봅니다. 계산에 쓰는 가게가 20곳 미만이면 비율이 크게 흔들려 같은 구의 값을 쓰고 ‘구 평균 대체’라고 표시합니다.',
   survival: '3~8년 전에 문을 연 가게 중 3년 이상 영업했거나 지금도 영업 중인 비율입니다. 높을수록 이 업종이 이 동네에서 오래 버팁니다. 사업자가 아니라 가게(인허가) 단위라 통계청 생존율보다 높게 나옵니다.',
@@ -126,7 +126,7 @@ const HELP = {
   single: '가게가 한 곳만 들어가는 자리가 최근 10년 동안 맞은 새 가게 수의 평균입니다. 주인만 바뀐 같은 상호는 한 가게로 셉니다. 높을수록 자리가 자주 바뀌는 동네입니다.',
   perSlot: '여러 가게가 들어가는 건물까지 포함해, 자리마다 10년 새 가게 수를 동시에 영업한 최대 가게 수로 나눈 값의 평균입니다. 큰 건물과 작은 가게 자리를 같은 눈높이로 비교하려는 값입니다.',
   demand: '동네 안 지하철역으로 사람이 얼마나, 언제 오가는지 봅니다. 역이 없는 동네는 비어 있습니다. 버스와 생활인구는 포함하지 않습니다.',
-  stations: '역별 하루 평균 승차+하차 인원(2024-09~2026-09)입니다. 한 사람이 타고 내리면 두 번 세서 유동인구와 다릅니다. 오전 하차(07~09시)가 많으면 일하러 오는 사람이 많은 동네, 저녁 하차(18~20시)는 저녁에 모이는 사람, 밤 승차(22~23시)는 늦게까지 머무는 사람이 많은 동네입니다.',
+  stations: '역별 하루 평균 승차+하차 인원(지하철 원본이 있는 최근 25개월, 데이터와 기준 화면에 기간 표시)입니다. 한 사람이 타고 내리면 두 번 세서 유동인구와 다릅니다. 오전 하차(07~09시)가 많으면 일하러 오는 사람이 많은 동네, 저녁 하차(18~20시)는 저녁에 모이는 사람, 밤 승차(22~23시)는 늦게까지 머무는 사람이 많은 동네입니다.',
 };
 
 function helpIcon(text, name) {
@@ -247,6 +247,8 @@ function renderSite(site, dongName = '') {
 
 function renderOverview(data) {
   $('#base-date-heading').textContent = data.base_date.replaceAll('-', '.');
+  const siteCount = (data.record_counts || []).find((row) => row.table === 'site');
+  if (siteCount) $('#site-count-stamp').textContent = `${formatNumber(siteCount.records)}곳`;
   const host = $('#data-result');
   const summary = (data.record_counts || []).filter((row) => ['dong', 'competition_stat', 'stability_stat', 'subway_station_stat', 'site', 'site_store'].includes(row.table));
   const sources = data.sources || [];
@@ -257,10 +259,44 @@ function renderOverview(data) {
     <p class="form-hint policy-note">${escapeHtml(data.score_policy)}</p>`;
 }
 
+const STAGE_LABEL = { done: '최근 실행 완료', running: '진행 중', failed: '최근 실행 실패', not_run: '최근 실행에서 건너뜀', not_tracked: '자동 갱신 기록 없음' };
+
+function kstTime(value) {
+  return new Date(value).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+// 데이터가 언제 기준이고 언제 다시 갱신되는지 (화면 위 '라이브 사인')
+function renderFreshness(p) {
+  const box = $('#data-freshness');
+  if (!p || !p.base_date || !p.next_run_at) return; // 예전 API(배포 직후 몇 분)에는 이 필드가 없다. 배지만 숨기고 넘어감
+  const base = p.base_date.replaceAll('-', '.');
+  $('#fresh-label').textContent = `데이터 ${base} 기준 · 매월 1일 갱신`;
+  const ok = p.last_success;
+  const last = p.last_run;
+  const lines = [
+    `공공데이터를 매월 1일 09:00(한국 시간)에 자동으로 다시 받아, 지난달 말일 기준으로 네 축을 다시 계산합니다.`,
+    `검증을 통과해야만 화면 데이터가 바뀌고, 실패하면 이전 데이터를 그대로 보여 줍니다.`,
+    ok ? `최근 갱신: ${kstTime(ok.finished_at)} 성공 (기준일 ${ok.base_date})`
+       : `자동 갱신 기록 없음: 지금 데이터는 ${p.base_date} 기준으로 처음 적재한 것입니다.`,
+  ];
+  if (last && last.status === 'failed' && (!ok || new Date(last.started_at) > new Date(ok.finished_at))) {
+    lines.push(`최근 시도: ${kstTime(last.started_at)} 실패 → 이전 데이터를 유지하고 있습니다.`);
+  }
+  lines.push(`다음 갱신 예정: ${kstTime(p.next_run_at)}`);
+  $('#fresh-help').dataset.tip = lines.join('\n');
+  box.classList.toggle('is-fresh', Boolean(ok));
+  box.classList.toggle('is-stale', Boolean(last && last.status === 'failed'));
+  box.hidden = false;
+  $('#base-date-heading').textContent = base;
+}
+
 async function loadPipeline() {
   const response = await api('/api/data/pipeline');
   const host = $('#pipeline-result');
-  host.innerHTML = (response.stages || []).map((stage, index) => `<div class="pipeline-step"><span class="pipeline-step-index">0${index + 1}</span><strong>${escapeHtml(stage.name)}</strong><p>${escapeHtml(stage.description)}</p><small>${escapeHtml(stage.status === 'not_tracked' ? '실행 상태 미추적' : stage.status)}</small></div>`).join('');
+  host.innerHTML = (response.stages || []).map((stage, index) => `<div class="pipeline-step"><span class="pipeline-step-index">0${index + 1}</span><strong>${escapeHtml(stage.name)}</strong><p>${escapeHtml(stage.description)}</p><small>${escapeHtml(STAGE_LABEL[stage.status] || stage.status)}</small></div>`).join('');
+  $('#pipeline-note').textContent = response.last_success ? `최근 갱신 ${kstTime(response.last_success.finished_at)}` : '매월 1일 자동 갱신';
+  try { renderFreshness(response); } catch (error) { console.warn('기준일 표시 실패', error); }
+  return response;
 }
 
 async function initialize() {

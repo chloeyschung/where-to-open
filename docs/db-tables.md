@@ -15,7 +15,7 @@ erDiagram
     dong ||--o{ competition_stat : "adm_cd"
     dong ||--o{ stability_stat : "adm_cd"
     dong ||--o{ subway_station_stat : "adm_cd"
-    dong |o--o{ site : "adm_cd"
+    dong |o--|{ site : "adm_cd"
     category ||--o{ competition_stat : "category_code"
     category ||--o{ stability_stat : "category_code"
     category ||--o{ stability_aggregate_stat : "category_code"
@@ -75,7 +75,7 @@ erDiagram
     }
 ```
 
-`dong |o--o{ site`: 자리 2,082곳은 행정동을 찾지 못해 `adm_cd`가 비어 있습니다(전체 109,943곳 중).
+`dong |o--|{ site`: 자리 2,082곳은 행정동을 찾지 못해 `adm_cd`가 비어 있습니다(전체 109,943곳 중). 427개 동은 모두 자리가 1곳 이상 있습니다.
 
 그림에는 지표가 담긴 주요 표만 넣었습니다(`stability_aggregate_stat`은 API가 읽지 않지만 안정성 비교 기준이라 넣음). 그 밖의 외래키: `store_dong.adm_cd` → `dong`, 비어 있는 예비 표인 `store`(→ `dong`, `category`), `yearly_stat`(→ `dong`, `category`), `demand_stat`(→ `dong`). 아래 각 표 설명에 있습니다.
 
@@ -96,6 +96,7 @@ erDiagram
 | | `uptae_count` | 원본 × 업태 | 64 | `competition/uptae_counts.csv` | 없음 (확인용) |
 | 예비 | `store`, `yearly_stat`, `demand_stat` | | 0 | 적재 안 함 | `demand_stat`만 리포트가 조회 (항상 빈 값) |
 | | `category_keyword` | | 확인 안 함 | 적재 스크립트가 채우지 않음 | 없음 |
+| 운영 | `batch_run` | 월 배치 실행 1번 | 실행할 때마다 늘어남 | `batch/run.py` | 데이터 설명(파이프라인), 모든 응답의 기준일 |
 
 ## 테이블별 설명
 
@@ -218,6 +219,23 @@ erDiagram
 | `open_date`, `close_date` | date | | 개업일, 폐업일 (영업 중이면 NULL) |
 | `months` | float | | 영업 개월. 영업 중이면 기준일까지 |
 | `merged` | int | | 같은 가게로 합친 인허가 수 (15,234행이 1 이상) |
+
+### batch_run · 월 배치 실행 기록
+
+`batch/run.py`가 실행마다 한 줄 씁니다. API는 마지막으로 성공한 실행의 기준일을 모든 응답의 `base_date`로 씁니다. 성공한 실행이 없으면 처음 적재한 2026-09-30입니다.
+
+| 컬럼 | 타입 | 키 | 설명 |
+|---|---|---|---|
+| `id` | int | **PK** | |
+| `started_at`, `finished_at` | timestamptz | | 시작·끝 시각 |
+| `status` | varchar(20) | | `running` / `success` / `failed` / `skipped`(다른 배치가 실행 중) |
+| `trigger` | varchar(20) | | `schedule`(매월 자동) / `manual` / `local` |
+| `stage` | varchar(40) | | 마지막으로 시작한 단계 (`fetch`·`prepare`·`axes`·`validate`·`load`) |
+| `base_date` | date | | 이 실행이 계산한 기준일 (지난달 말일) |
+| `demand_start`, `demand_end` | date | | 수요 기간 (지하철 원본이 올라온 가장 최근 달까지 25개월) |
+| `message`, `row_counts` | text | | 실패 이유 또는 요약, 적재한 표별 행 수(JSON) |
+
+서버가 시작할 때 이 표가 없으면 만듭니다(있으면 건드리지 않음).
 
 ### meta_source · 데이터 출처
 

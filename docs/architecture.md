@@ -107,6 +107,21 @@ flowchart LR
 
 `load_data.py --dry-run`은 CSV 형식과 행정동 코드 매핑을 검사하고, 실제 실행은 기존 애플리케이션 데이터가 없는 DB에서만 진행합니다. 수요 CSV는 역별 집계 자료이므로 `demand_stat`의 행정동×시간대 테이블에 잘못 넣지 않고 `subway_station_stat`에 적재합니다.
 
+## 월간 갱신 (배치)
+
+```mermaid
+flowchart LR
+    CRON["GitHub Actions<br/>매월 1일 09:00 KST · 수동 실행"] --> RUN["batch/run.py<br/>fetch → prepare → axes → validate"]
+    API2["서울 Open API<br/>인허가 3종 · 지하철"] --> RUN
+    RUN -->|검증 통과| LOAD["backend/batch_load.py<br/>임시 표 → 한 트랜잭션 교체"]
+    RUN -.->|실패| KEEP["DB 그대로<br/>batch_run 에 실패 기록"]
+    LOAD --> DB2[("Supabase PostgreSQL")]
+    LOAD --> LOG["batch_run<br/>실행 기록"]
+    LOG --> SHOW["GET /api/data/pipeline<br/>화면 위 '데이터 ○○ 기준 · 매월 1일 갱신'"]
+```
+
+기준일은 지난달 말일입니다. 중복 실행은 GitHub Actions `concurrency`와 PostgreSQL advisory lock으로 막고, 실패하면 기존 데이터를 그대로 둡니다. 자세한 내용은 `batch/README.md`에 있습니다.
+
 ## 현재 제약
 
 - `data/seoul/sites.csv`와 `data/seoul/site_history.csv`(드라이브에서 받기, git 제외)를 `backend/load_sites.py`로 적재했습니다. 자리 109,943건, 업소 이력 576,785건이며 주소 검색(`GET /api/address/search`)으로 `site_id`를 찾아 `GET /api/sites/{site_id}`에서 조회합니다.
