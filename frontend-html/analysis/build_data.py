@@ -55,6 +55,8 @@ overview = {
     "close_date_missing": int((permits.close_date_missing == "True").sum()),
     "stations": int(len(demand)),
     "sites_10y": int(len(sites)),
+    # 기준일 영업 중이지만 행정동을 못 찾은 가게 (좌표 없음 + 도로명주소 API로도 못 찾음). 서울 합계에만 들어가고 동네 값에는 없음
+    "open_no_dong": int((open_base & cat & permits.adm_cd.isna()).sum()),
 }
 # 공용 파일로 센 9/30 영업 중 = 안정성 서울 값 (두 축이 같은 가게를 세는지 확인)
 check = permits[open_base & cat].groupby("category").size().reindex(CATS)

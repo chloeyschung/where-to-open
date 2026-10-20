@@ -15,7 +15,8 @@ window.ANALYSIS = {
   "popups_removed_in_categories": 4194,
   "close_date_missing": 31,
   "stations": 306,
-  "sites_10y": 109943
+  "sites_10y": 109943,
+  "open_no_dong": 467
  },
  "sources": [
   {
