@@ -83,12 +83,12 @@ erDiagram
 
 | 그룹 | 테이블 | 한 줄 = | 행 수 | 원본 | 쓰는 API |
 |---|---|---|---:|---|---|
-| 기준표 | `dong` | 행정동 1곳 | 427 | `competition/dong_area.csv` | 동 목록, 리포트, 주소 검색 |
+| 기준표 | `dong` | 행정동 1곳 | 427 | `competition/dong_area.csv` | 동 목록, 리포트, 자리 상세, 주소 검색 |
 | | `category` | 업종 1개 | 3 | `load_data.py` 안에서 정의 | 업종 목록, 리포트, 자리 상세 |
 | 경쟁 | `competition_stat` | 동 × 업종 | 1,281 | `competition/competition_by_dong.csv` | 리포트, 자리 상세 |
-| 안정성 | `stability_stat` | 동 × 업종 | 1,281 | `stability/data/stability_by_dong.csv` | 리포트, 자리 상세 |
+| 안정성 | `stability_stat` | 동 × 업종 | 1,281 | `stability/data/stability_by_dong.csv` | 리포트 |
 | | `stability_aggregate_stat` | 구 또는 서울 × 업종 | 78 | `stability_by_gu.csv`(75), `stability_seoul.csv`(3) | 없음 |
-| 수요 | `subway_station_stat` | 지하철역 1곳 | 306 | `demand/subway_demand_202409_202609.csv` | 리포트, 자리 상세 |
+| 수요 | `subway_station_stat` | 지하철역 1곳 | 306 | `demand/subway_demand_202409_202609.csv` | 리포트 |
 | 자리 | `site` | 지번 1곳 | 109,943 | `data/seoul/sites.csv` (드라이브) | 리포트, 자리 상세, 주소 검색 |
 | | `site_store` | 그 지번에 있었던 가게 1곳 | 576,785 | `data/seoul/site_history.csv` (드라이브) | 자리 상세 |
 | 메타 | `meta_source` | 데이터 출처 1개 | 3 | `load_data.py` 안에서 정의 | 데이터 설명 |
@@ -255,4 +255,4 @@ erDiagram
 5. `site`에서 그 동의 자리 수와 동 평균
 6. `demand_stat`(비어 있음)과 `subway_station_stat`에서 그 동의 수요
 
-주소 검색(`GET /api/address/search`)은 도로명주소 API가 돌려준 지번으로 `site.site_key`를 찾고, 행정동 이름은 `dong`에서 찾습니다. 자리 상세(`GET /api/sites/{id}`)는 `site`와 `site_store`를 읽고, 그 동의 경쟁 밀도를 보여 주려고 위 동 리포트(1~6)를 한 번 더 만듭니다. 화면에는 그중 경쟁 값만 씁니다.
+주소 검색(`GET /api/address/search`)은 도로명주소 API가 돌려준 지번으로 `site.site_key`를 찾고, 행정동 이름은 `dong`에서 찾습니다. 자리 상세(`GET /api/sites/{id}`)는 `site`와 `site_store`를 읽고, 그 동의 선택 업종 밀도를 비교하려고 `dong`과 `competition_stat`을 읽습니다(위 1~3).
