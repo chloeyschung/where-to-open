@@ -20,7 +20,7 @@ class SiteService:
         category = self.categories.require(category_code)
         competition = None
         if site.adm_cd:
-            competition = ReportService(self.db).dong_report(site.adm_cd, category.code).competition
+            competition = ReportService(self.db).competition_only(site.adm_cd, category.code)  # 선택 업종의 동 밀도 비교만
 
         return SiteDetailResponse(
             id=site.id,

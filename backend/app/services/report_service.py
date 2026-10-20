@@ -88,6 +88,11 @@ class ReportService:
             stations=[StationDemand.model_validate(row, from_attributes=True) for row in station_rows],
         )
 
+    def competition_only(self, adm_cd: str, category_code: str) -> CompetitionSection | None:
+        """경쟁 축만 계산한다. 자리 상세처럼 동 리포트 전체가 필요 없을 때 쓴다."""
+        dong = self.dongs.get_dong(adm_cd)  # 없으면 NotFoundError
+        return self._competition(adm_cd, dong.gu, category_code)
+
     def _competition(self, adm_cd: str, gu: str, category_code: str) -> CompetitionSection | None:
         """경쟁 축. 이 동의 값은 DB(=CSV) 그대로, 비교 값만 여기서 계산한다.
 
