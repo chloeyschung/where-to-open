@@ -41,7 +41,40 @@ flowchart LR
 
 외부 API를 요청 때마다 부르는 곳은 주소 검색(`GET /api/address/search`) 하나입니다. 입력한 주소를 도로명주소 API로 찾아 지번을 자리 키(`구 동 번지`, `jari/common.py`의 `jibun_key`와 같은 규칙)로 바꾸고 `site`와 `dong`에서 자리·행정동을 찾습니다. 나머지 API는 기준일(2026-09-30)로 미리 계산해 적재한 값만 읽습니다.
 
-## 데이터 수집·정규화·적재 흐름
+## 데이터 수집 흐름 (외부 API·오픈 데이터 → 축별 결과 파일)
+
+기준일(2026-09-30)로 한 번 수집·계산해 결과 파일을 만듭니다. 서비스가 돌아가는 동안 다시 수집하지 않습니다.
+
+```mermaid
+flowchart LR
+    subgraph EXT[외부 API · 오픈 데이터]
+        P["서울 열린데이터광장<br/>인허가 3종 CSV<br/>(OA-16094·16095·16084)"]
+        PAPI["서울 Open API<br/>LOCALDATA_072404·072405·072218"]
+        SUBD["서울 열린데이터광장<br/>지하철 일별 승하차 CSV (OA-12914)"]
+        SUBH["서울 Open API<br/>CardSubwayTime (OA-12252)"]
+        STA["역사마스터 (OA-21232)"]
+        JUSO["행정안전부<br/>도로명주소 검색 API"]
+        BND["행정동 경계<br/>vuski/admdongkor"]
+    end
+
+    PAPI --> JC["jari/collect.py · hemd.py · fill_dong.py<br/>좌표 없는 가게의 행정동을 주소로 찾기"]
+    JUSO --> JC
+    JC --> FILL["jari/dong_fill.csv"]
+    P --> PREP["competition/permits_prep.py<br/>정제 · 좌표 → 행정동 · 팝업 판정"]
+    BND --> PREP
+    FILL --> PREP
+    PREP --> BASE["공용 파일 permits_base.csv<br/>(드라이브)"]
+    PREP --> COMPOUT["competition_by_dong.csv · dong_area.csv"]
+    BASE --> STABS["stability/build_stability.py"] --> STABOUT["stability_by_dong·gu·seoul.csv"]
+    BASE --> SITES["jari/sites.py"] --> SITEOUT["sites.csv · site_history.csv<br/>(드라이브)"]
+    SUBD --> SUB["demand/subway.py · map_stations_to_dongs.py"]
+    SUBH --> SUB
+    STA --> SUB
+    BND --> SUB
+    SUB --> DEMOUT["subway_demand_202409_202609.csv"]
+```
+
+## 데이터 적재 흐름 (결과 파일 → DB)
 
 ```mermaid
 flowchart LR
@@ -51,7 +84,7 @@ flowchart LR
         DEMAND["demand/<br/>subway_demand_202409_202609.csv<br/>역별 하루 평균 집계"]
         JARI["jari/<br/>dong_fill.csv<br/>주소 → 행정동 보충"]
         SITE["data/seoul/ (드라이브, git 제외)<br/>sites.csv · site_history.csv<br/>자리·업소 10년 이력"]
-        MISSING["로컬에 없음<br/>permits_base.csv<br/>yearly_by_dong.csv"]
+        MISSING["적재 안 함 (예비 표)<br/>permits_base.csv · yearly_by_dong.csv"]
     end
 
     COMP --> LOADER["backend/load_data.py<br/>CSV 검증·코드 매핑<br/>빈 DB에 스키마 생성·적재"]
@@ -61,10 +94,10 @@ flowchart LR
     SITE --> SITELOADER["backend/load_sites.py<br/>키 연결·중복 방지<br/>작은 트랜잭션으로 적재"]
     LOADER --> DB[("Supabase PostgreSQL")]
     SITELOADER --> DB
-    MISSING -.->|현재 적재 보류| DB
+    MISSING -.->|적재 안 함| DB
 
     subgraph TABLES[적재된 테이블]
-        T1["dong · category · meta_source"]
+        T1["dong · category · meta_source (API는 쓰지 않음)"]
         T2["competition_stat · stability_stat<br/>stability_aggregate_stat"]
         T3["subway_station_stat · store_dong · uptae_count"]
         T4["site · site_store<br/>자리 109,943 · 이력 576,785"]
@@ -77,7 +110,8 @@ flowchart LR
 ## 현재 제약
 
 - `data/seoul/sites.csv`와 `data/seoul/site_history.csv`(드라이브에서 받기, git 제외)를 `backend/load_sites.py`로 적재했습니다. 자리 109,943건, 업소 이력 576,785건이며 주소 검색(`GET /api/address/search`)으로 `site_id`를 찾아 `GET /api/sites/{site_id}`에서 조회합니다.
-- `store` 테이블에 들어갈 공용 `permits_base.csv`는 공유 드라이브에만 있어 로컬에 없습니다.
+- `store` 표는 적재하지 않았습니다(공용 `permits_base.csv`는 드라이브에 있음). 화면은 미리 계산한 지표만 씁니다.
+- 데이터 출처 목록(`GET /api/data/overview`의 `sources`)은 DB `meta_source`(3개만 적재됨)가 아니라 `backend/app/services/data_service.py`에 둔 9개를 줍니다. 데이터 분석 페이지 목록과 같습니다.
 - `yearly_stat` 산출물과 행정동×시간대 수요 파일은 현재 없습니다. 수요는 역별 집계의 오전·저녁·밤 지표를 씁니다.
 - 수집 파이프라인 API는 단계 설명만 반환합니다. 배치 실행 이력이나 실제 작업 상태를 추적하는 기능은 아직 없습니다.
 - 주소 검색은 도로명주소 API가 돌려준 앞쪽 20건만 봅니다. 결과가 많으면 주소를 더 자세히 넣어야 합니다. Render에 `JUSO_API_KEY`가 없으면 주소 검색만 503을 돌려줍니다.

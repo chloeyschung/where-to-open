@@ -10,7 +10,7 @@
   stability_by_gu.csv       자치구 × 업종 지표 (구 평균 대체에 쓰는 값)
   stability_seoul.csv       서울 전체 × 업종 지표 (비교 기준선)
   quality_report.json       제외 사유별 건수, 지표별 구 평균 대체 건수
-  (--extra-out 폴더에 yearly_by_dong.csv: 행정동 × 업종 × 연도 신규·폐업 — 데이터 분석 페이지용, 커밋 안 함)
+  (--extra-out 폴더에 yearly_by_dong.csv: 행정동 × 업종 × 연도 신규·폐업 — 지금은 쓰지 않음, 커밋 안 함)
 
 공통 규칙 적용
   1  공용 파일만 쓴다. 업소 키 = source + mgt_no, 행정동 = adm_cd (주소로 이미 채워짐)

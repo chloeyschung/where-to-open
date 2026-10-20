@@ -18,7 +18,7 @@ from app.services.dong_service import DongService
 
 
 class ReportService:
-    """한 동 × 한 업종의 네 축을 모은다. 지금은 경쟁 축만 채우고 나머지는 None."""
+    """한 동 × 한 업종의 네 축(경쟁·안정성·자리·수요)을 모은다. 그 동에 자료가 없는 축은 None."""
 
     def __init__(self, db: Session):
         self.dongs = DongService(db)
@@ -96,7 +96,7 @@ class ReportService:
     def _competition(self, adm_cd: str, gu: str, category_code: str) -> CompetitionSection | None:
         """경쟁 축. 이 동의 값은 DB(=CSV) 그대로, 비교 값만 여기서 계산한다.
 
-          open_count, density_per_km2   competition_stat 그대로 (계산식은 scripts/load_data.py 의 load_competition)
+          open_count, density_per_km2   competition_stat 그대로 (competition/competition_by_dong.csv를 backend/load_data.py가 적재)
           gu_avg_density                같은 구 행정동들의 밀도 단순 평균, 소수 1자리
           seoul_avg_density             서울 427개 행정동 밀도 단순 평균, 소수 1자리
           seoul_rank / seoul_dong_count 서울 행정동 중 밀도 순위 (동점은 같은 순위)

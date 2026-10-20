@@ -247,7 +247,7 @@ $("stab-lead").textContent = "최근 1년 동안 " + [
   });
   hbar($("stab-chart"), rows, { labelW: 120 });
 })();
-$("stab-tiles").innerHTML = S.map(s => `<div class="tile"><div class="k">${s.category} 3년 생존율</div><div class="v">${s.survival_3y}%</div><div class="s">3~8년 전 개업한 가게 중 3년 넘게 영업</div></div>`).join("");
+$("stab-tiles").innerHTML = S.map(s => `<div class="tile"><div class="k">${s.category} 3년 생존율</div><div class="v">${s.survival_3y}%</div><div class="s">3~8년 전 개업한 가게 중 3년 이상 영업</div></div>`).join("");
 const share = D.stability_dong_share;
 $("stab-note").textContent = `동네 값은 계산에 쓰는 가게가 20곳 이상일 때만 씁니다. 교체율 기준 동네 값이 있는 행정동: ` +
   CATS.map(k => `${k} ${share[k].turnover_dong}곳`).join(", ") + ` (나머지는 구 평균). 생존율은 인허가 단위라 통계청 사업자 단위 통계(숙박·음식점업 3년 생존율 30.3%, 「2015년 기업생멸행정통계」)보다 높게 나옵니다.`;

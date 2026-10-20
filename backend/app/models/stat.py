@@ -19,7 +19,7 @@ class CompetitionStat(Base):
 
 
 class StabilityStat(Base):
-    """안정성 축 (stability/out/stability_by_dong.csv). 화면·API는 display_* 값을 쓴다."""
+    """안정성 축 (stability/data/stability_by_dong.csv). 화면·API는 display_* 값을 쓴다."""
 
     __tablename__ = "stability_stat"
 
@@ -63,7 +63,7 @@ class StabilityAggregateStat(Base):
 
 
 class YearlyStat(Base):
-    """연도별 신규·폐업 (stability/out/yearly_by_dong.csv), 데이터 분석 페이지용."""
+    """연도별 신규·폐업 (stability/out/yearly_by_dong.csv). 예비 표 (지금은 적재하지 않음)."""
 
     __tablename__ = "yearly_stat"
 
@@ -75,7 +75,7 @@ class YearlyStat(Base):
 
 
 class DemandStat(Base):
-    """수요 축 자리. 결과 파일 형식이 정해지면 컬럼을 확정한다 (service-plan 9절)."""
+    """행정동 × 시간대 수요. 예비 표 (지금은 적재하지 않음). 수요는 역 단위 subway_station_stat을 쓴다."""
 
     __tablename__ = "demand_stat"
 
