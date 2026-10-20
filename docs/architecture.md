@@ -4,7 +4,7 @@
 
 | 구성 | 플랫폼 | 주소 |
 |---|---|---|
-| 화면 | Vercel (`frontend-html` 폴더) | 배포 후 채움 |
+| 화면 | Vercel (`frontend-html` 폴더) | https://where-to-open-frontend-html.vercel.app (데이터 분석: https://where-to-open-frontend-html.vercel.app/analysis/) |
 | API | Render Web Service (Docker, `backend/Dockerfile`) | https://where-to-open-cilr.onrender.com |
 | API 문서 (Swagger UI) | Render | https://where-to-open-cilr.onrender.com/docs |
 | DB | Supabase PostgreSQL (서울 리전) | 접속 정보는 Render 환경변수 `DATABASE_URL` |
